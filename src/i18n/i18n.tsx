@@ -1,17 +1,12 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  ReactNode,
-  useMemo,
-} from "react";
+import React, { createContext, useContext, useState, useMemo } from "react";
+import type { ReactNode } from "react";
 
 type Language = "ru" | "kk";
 
 type I18nContextValue = {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, fallback?: string) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
@@ -71,9 +66,6 @@ const translations: Record<Language, Record<string, string>> = {
     "dashboard.quickActions.risk": "Список учеников «в группе риска»",
 
     // --- Заглушки страниц ---
-    "orders.title": "Список приказов",
-    "orders.subtitle":
-      "Здесь будет список приказов (образцы учебных программ с adiletzan.kz, внутренние приказы школы, фильтрация по дате и типу).",
 
     "classes.title": "Аналитика по классам",
     "classes.subtitle":
@@ -87,9 +79,6 @@ const translations: Record<Language, Record<string, string>> = {
     "assessments.subtitle":
       "Разбор оценок по СОР и СОЧ: по всей школе, по предметам, по классам. Позже добавим фильтры и графики.",
 
-    "risk.title": "Ученики «в группе риска»",
-    "risk.subtitle":
-      "Тут будет AI-мониторинг: падающие оценки, пропуски, низкая активность, комментарии учителей — и список учеников, требующих внимания.",
     "orders.title": "Список приказов",
     "orders.subtitle":
       "Образцы учебных программ, приказы и документы школы, привязанные к AdiletZan.kz и внутренним приказам.",
@@ -231,11 +220,6 @@ const translations: Record<Language, Record<string, string>> = {
     "dashboard.quickActions.classes": "Сынып аналитикасын көру",
     "dashboard.quickActions.risk": "«Қауіп тобындағы» оқушылар тізімі",
 
-    // --- Заглушки страниц ---
-    "orders.title": "Бұйрықтар тізімі",
-    "orders.subtitle":
-      "Мұнда AdiletZan.kz-тен оқу бағдарламалары үлгілері, мектептің ішкі бұйрықтары, күн мен түрі бойынша фильтр болады.",
-
     "classes.title": "Сынып аналитикасы",
     "classes.subtitle":
       "Кейін әр сынып бойынша карточка/кесте: оқушылар саны, ұл/қыз, жас құрамы, үздіктер, жақсы оқушылар және т.б. көрсетіледі.",
@@ -257,9 +241,6 @@ const translations: Record<Language, Record<string, string>> = {
       "Оқу бағдарламаларының үлгілері, мектеп бұйрықтары және AdiletZan.kz-пен байланысты құжаттар.",
 
     // ---------- Risk Students Page ----------
-    "risk.title": "Тәуекел тобындағы оқушылар",
-    "risk.subtitle":
-      "AI-мониторинг бағалардың төмендеуін, қатыспауларды, төмен белсенділікті және басқа да белгісіздіктерді бақылап, тәуекел тобындағы оқушыларды анықтайды.",
     "risk.classFilter": "Сынып:",
     "risk.allClasses": "Барлық сыныптар",
 
@@ -349,9 +330,9 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({
   const [language, setLanguage] = useState<Language>("ru");
 
   const value = useMemo<I18nContextValue>(() => {
-    const t = (key: string): string => {
+    const t = (key: string, fallback?: string): string => {
       const dict = translations[language];
-      return dict[key] ?? key;
+      return dict[key] ?? fallback ?? key;
     };
 
     return { language, setLanguage, t };

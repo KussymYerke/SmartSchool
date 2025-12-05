@@ -25,9 +25,10 @@ export type PageKey =
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   );
+
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(
     null
   );
@@ -35,11 +36,6 @@ const App: React.FC = () => {
     null
   );
 
-  // студент
-  const handleOpenStudentProfile = (id: number) => {
-    setSelectedStudentId(id);
-    setCurrentPage("studentProfile");
-  };
   const handleBackFromStudent = () => setCurrentPage("risk");
 
   // учитель
@@ -67,12 +63,16 @@ const App: React.FC = () => {
       case "assessments":
         return <AssessmentsPage />;
       case "risk":
-        return <RiskStudentsPage onSelectStudent={handleOpenStudentProfile} />;
+        return (
+          <RiskStudentsPage
+            onSelectStudent={(id) => setSelectedStudentId(String(id))}
+          />
+        );
       case "studentProfile":
         return (
           selectedStudentId && (
             <StudentProfilePage
-              studentId={selectedStudentId}
+              studentId={String(selectedStudentId)}
               onBack={handleBackFromStudent}
             />
           )

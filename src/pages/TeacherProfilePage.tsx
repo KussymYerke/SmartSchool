@@ -51,7 +51,7 @@ export const TeacherProfilePage: React.FC<TeacherProfilePageProps> = ({
             {teacher.fullName}
           </h1>
           <p className="text-sm text-slate-300">
-            {teacher.mainSubjects.join(" · ") || t("teacher.noSubject", "Пән")}
+            {teacher.mainSubjects?.join(" · ") || t("teacher.noSubject", "Пән")}
           </p>
 
           <div className="flex flex-wrap gap-2 pt-2">

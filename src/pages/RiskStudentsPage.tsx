@@ -1,16 +1,12 @@
 // src/pages/RiskStudentsPage.tsx
 import React, { useMemo, useState } from "react";
+import { calculateRiskScore, getRiskLevel } from "../data/riskUtils";
 import { STUDENTS } from "../data/students";
-import {
-  calculateRiskScore,
-  getRiskLevel,
-  isAtRisk,
-  type RiskLevel,
-} from "../data/riskUtils";
+import { type RiskLevel } from "../data/riskUtils";
 import { useI18n } from "../i18n/i18n";
 
 type RiskStudentsPageProps = {
-  onSelectStudent: (id: number) => void;
+  onSelectStudent: (id: string) => void;
 };
 
 const riskColorClass: Record<RiskLevel, string> = {
@@ -42,7 +38,7 @@ export const RiskStudentsPage: React.FC<RiskStudentsPageProps> = ({
     return STUDENTS.filter((s) =>
       selectedClass === "all" ? true : s.className === selectedClass
     )
-      .filter((s) => isAtRisk(s))
+      .filter((s) => getRiskLevel(calculateRiskScore(s)) !== "none")
       .map((s) => {
         const score = calculateRiskScore(s);
         const level = getRiskLevel(score);
@@ -219,7 +215,7 @@ export const RiskStudentsPage: React.FC<RiskStudentsPageProps> = ({
                     {t("risk.noSubjects", "Қиын пәндер жоқ")}
                   </span>
                 )}
-                {s.subjectsAtRisk.map((subj) => (
+                {s.subjectsAtRisk.map((subj: string) => (
                   <span
                     key={subj}
                     className="text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-200 border border-indigo-500/30"

@@ -8,16 +8,23 @@ export type TeacherRaw = {
   nationality: string;
   email: string;
   phones: string;
+  mainSubjects?: string[];
+  mainLanguages?: string[];
   education: string;
   specialty: string; // Мамандығы
   category: string; // Санаты
   attestationYear: string; // Аттестациядан өткен уақыты
-  teachingLanguages: string; // Оқыту тілі
+  teachingLanguages?: string; // Оқыту тілі
   totalExperience: string; // Жалпы пед. еңбек өтілі (как в таблице)
-  subjectCompetence: string; // Пәндік құзыреттілік
+  subjectCompetence?: string; // Пәндік құзыреттілік
   courses: string; // Т/б курстар
   sorCourses: string; // БЖБ, ТЖБ курстары
   degree: string; // Ғылыми дәрежесі
+  classAssignments?: {
+    className: string;
+    subject: string;
+    hoursPerWeek?: number;
+  }[];
 };
 
 export const TEACHERS_RAW: TeacherRaw[] = [
@@ -155,12 +162,6 @@ export const TEACHERS_RAW: TeacherRaw[] = [
     sorCourses: "-",
 
     // 📈 График успеваемости
-    performanceByQuarter: [
-      { label: "1 четверть", avgGrade: 4.3 },
-      { label: "2 четверть", avgGrade: 4.1 },
-      { label: "3 четверть", avgGrade: 4.0 },
-      { label: "4 четверть", avgGrade: 4.2 },
-    ],
 
     // 🧑‍🏫 Привязка к классам
     classAssignments: [

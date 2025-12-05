@@ -1,5 +1,20 @@
 // src/types/school.ts
 
+export type Student = {
+  id: string;
+  fullName: string;
+  className: string;
+  gender: "male" | "female";
+  avgGrade: number;
+  gradeTrend: number;
+  absences: number;
+  unexcusedAbsences: number;
+  lowActivity: boolean;
+  homeworkCompletion: number;
+  teacherAlerts: number;
+  subjectsAtRisk: string[];
+};
+
 export type ClassName =
   | "7A"
   | "8A"
@@ -24,24 +39,24 @@ export type SubjectCode =
   | "worldHistory"
   | "geography";
 
-export type RiskLevel = "low" | "medium" | "high";
+// --- MAIN RISK LEVEL SOURCE ---
+export type RiskLevel = "high" | "medium" | "low" | "none";
 
-export type Student = {
-  id: string;
-  fullName: string;
-  className: ClassName;
-  gender: "male" | "female";
-  // показатели для AI-мониторинга
-  avgGrade: number;            // средний балл
-  gradeTrend: number;          // изменение среднего балла за последний период (в пунктах)
-  absences: number;            // количество пропусков за четверть
-  unexcusedAbsences: number;   // количество пропусков без уважительной причины
-  lowActivity: boolean;        // низкая активность / вовлеченность
-  homeworkCompletion: number;  // % выполненных ДЗ
-  teacherAlerts: number;       // сколько раз учителя отмечали "есть проблема"
-  subjectsAtRisk: SubjectCode[]; // по каким предметам провалы
+export const riskColorClass: Record<RiskLevel, string> = {
+  high: "bg-red-500/20 text-red-400",
+  medium: "bg-yellow-500/20 text-yellow-400",
+  low: "bg-blue-500/20 text-blue-400",
+  none: "bg-slate-700 text-slate-300",
 };
 
+export const riskLabel: Record<RiskLevel, string> = {
+  high: "Жоғары / Высокий",
+  medium: "Орташа / Средний",
+  low: "Төмен / Низкий",
+  none: "Жоқ / Нет риска",
+};
+
+// --- SUBJECT INFO ---
 export type Subject = {
   code: SubjectCode;
   nameRu: string;

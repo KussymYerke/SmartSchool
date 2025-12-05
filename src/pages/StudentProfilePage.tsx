@@ -1,4 +1,4 @@
-import { React, useMemo } from "react";
+import React, { useMemo } from "react";
 import { STUDENTS } from "../data/students";
 import { useI18n } from "../i18n/i18n";
 import {
@@ -19,7 +19,7 @@ import {
 } from "recharts";
 
 type StudentProfilePageProps = {
-  studentId: number;
+  studentId: string;
   onBack: () => void;
 };
 

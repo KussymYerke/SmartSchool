@@ -1,5 +1,6 @@
+import type { Student } from "../types/student";
+
 export const STUDENTS: Student[] = [
-  // ---------- 7A ----------
   {
     id: "7A-1",
     fullName: "Азизова Эсма Хейраддиновна",

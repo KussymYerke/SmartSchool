@@ -62,7 +62,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
       { key: "oct", label: "Қаз" },
       { key: "nov", label: "Қар" },
     ];
-    const weights = [0.08, 0.1, 0.12,];
+    const weights = [0.08, 0.1, 0.12];
     const total = totals.absences || 0;
 
     return months.map((m, idx) => ({
@@ -253,7 +253,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
                       Қиын пәндер жоқ
                     </span>
                   )}
-                  {s.subjectsAtRisk.map((subj) => (
+                  {s.subjectsAtRisk.map((subj: string) => (
                     <span
                       key={subj}
                       className="text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-200 border border-indigo-500/30"

@@ -1,8 +1,8 @@
 // src/data/teachers.ts
 
 export type TeacherQuarterPerformance = {
-  label: string; // '1 четверть'
-  avgGrade: number; // 1–5
+  label: string;
+  avgGrade: number;
 };
 
 export type TeacherClassAssignment = {
@@ -24,7 +24,7 @@ export type Teacher = {
   category?: string;
   attestationYear?: string;
   mainLanguages: string[];
-  mainSubjects: string[];
+  mainSubjects?: string[];
   totalExperience?: string;
   degree?: string;
   courses?: string;
