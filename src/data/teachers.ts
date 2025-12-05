@@ -56,8 +56,8 @@ export const TEACHERS: Teacher[] = [
     performanceByQuarter: [
       { label: "1 четверть", avgGrade: 4.2 },
       { label: "2 четверть", avgGrade: 4.1 },
-      { label: "3 четверть", avgGrade: 4.0 },
-      { label: "4 четверть", avgGrade: 4.3 },
+      //   { label: "3 четверть", avgGrade: 4.0 },
+      //   { label: "4 четверть", avgGrade: 4.3 },
     ],
     classAssignments: [
       { className: "7A", subject: "Тарих", hoursPerWeek: 2 },
