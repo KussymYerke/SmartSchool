@@ -24,7 +24,7 @@ export const DashboardPage: React.FC<Props> = ({ onNavigate }) => {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label={t("dashboard.stat.students.label")}
-          value={624}
+          value={150}
           subtitle={t("dashboard.stat.students.subtitle")}
           trendLabel={t("dashboard.stat.students.trendLabel")}
           trendValue={t("dashboard.stat.students.trendValue")}
