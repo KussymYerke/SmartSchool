@@ -38,6 +38,11 @@ const App: React.FC = () => {
 
   const handleBackFromStudent = () => setCurrentPage("risk");
 
+  const handleOpenStudentProfile = (id: string) => {
+    setSelectedStudentId(id);
+    setCurrentPage("studentProfile");
+  };
+
   // учитель
   const handleOpenTeacherProfile = (id: number) => {
     setSelectedTeacherId(id);
@@ -63,11 +68,8 @@ const App: React.FC = () => {
       case "assessments":
         return <AssessmentsPage />;
       case "risk":
-        return (
-          <RiskStudentsPage
-            onSelectStudent={(id) => setSelectedStudentId(String(id))}
-          />
-        );
+        return <RiskStudentsPage onSelectStudent={handleOpenStudentProfile} />;
+
       case "studentProfile":
         return (
           selectedStudentId && (

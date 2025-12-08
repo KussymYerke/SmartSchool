@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+// src/pages/StudentProfilePage.tsx
+import React, { useMemo, useEffect, useState } from "react";
 import { STUDENTS } from "../data/students";
 import { useI18n } from "../i18n/i18n";
 import {
@@ -17,6 +18,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { getStudentAIRecommendations } from "../services/ai";
 
 type StudentProfilePageProps = {
   studentId: string;
@@ -52,34 +54,69 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     return { riskScore: score, riskLevel: level };
   }, [student]);
 
-  // 🔹 Синтетическая история оценок по четвертям,
-  // опираемся на avgGrade и тренд
+  // AI state
+  const [aiText, setAiText] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  // const [aiError, setAiError] = useState<string | null>(null);
+
+  // Вызов реального AI при смене ученика
+  useEffect(() => {
+    if (!student) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        setAiLoading(true);
+        // setAiError(null);
+        setAiText(null);
+
+        // язык можно выбрать из useI18n, пока жёстко "kk"
+        const text = await getStudentAIRecommendations(student, "kk");
+
+        if (!cancelled) {
+          setAiText(text);
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          // setAiError("AI сервис уақытша қолжетімсіз.");
+        }
+      } finally {
+        if (!cancelled) {
+          setAiLoading(false);
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [student]);
+
+  // Синтетическая история оценок
   const gradeHistory = useMemo(() => {
     if (!student) return [];
     const base = student.avgGrade;
     const trend = student.gradeTrend;
 
-    // делаем 4 точки: Q1..Q4
     const q1 = Math.min(5, Math.max(2, base - trend * 1.5));
     const q2 = Math.min(5, Math.max(2, base - trend * 0.5));
-    const q3 = Math.min(5, Math.max(2, base + trend * 0.5));
-    const q4 = Math.min(5, Math.max(2, base + trend * 1.0));
 
     return [
       { quarter: "Q1", grade: Number(q1.toFixed(1)) },
       { quarter: "Q2", grade: Number(q2.toFixed(1)) },
-      { quarter: "Q3", grade: Number(q3.toFixed(1)) },
-      { quarter: "Q4", grade: Number(q4.toFixed(1)) },
     ];
   }, [student]);
 
-  // 🔹 Имитация пропусков по месяцам
+  // Имитация пропусков по месяцам
   const absencesHistory = useMemo(() => {
     if (!student) return [];
     const total = student.absences;
     const unexcused = student.unexcusedAbsences;
 
-    // грубо делим на 4 месяца
     const m1 = Math.round(total * 0.25);
     const m2 = Math.round(total * 0.25);
     const m3 = Math.round(total * 0.25);
@@ -98,24 +135,10 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     ];
   }, [student]);
 
-  if (!student) {
-    return (
-      <div className="space-y-4">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center text-sm text-slate-300 hover:text-slate-100"
-        >
-          ← {t("student.back", "Артқа қайту")}
-        </button>
-        <p className="text-slate-300">
-          {t("student.notFound", "Оқушы табылмады.")}
-        </p>
-      </div>
-    );
-  }
-
-  // 🔹 Простые AI-рекомендации
+  // Старые rule-based рекомендации как fallback
   const aiRecommendations = useMemo(() => {
+    if (!student) return [];
+
     const recs: string[] = [];
 
     if (student.avgGrade < 3.5) {
@@ -162,6 +185,22 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
 
     return recs;
   }, [student]);
+
+  if (!student) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center text-sm text-slate-300 hover:text-slate-100"
+        >
+          ← {t("student.back", "Артқа қайту")}
+        </button>
+        <p className="text-slate-300">
+          {t("student.notFound", "Оқушы табылмады.")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -262,14 +301,32 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
             <h3 className="text-sm font-semibold text-indigo-100 mb-3">
               {t("student.aiTitle", "AI ұсыныстар (завуч үшін)")}
             </h3>
-            <ul className="space-y-2 text-xs text-indigo-100/90">
-              {aiRecommendations.map((rec, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                  <span>{rec}</span>
-                </li>
-              ))}
-            </ul>
+
+            {/* 1. Лоадер */}
+            {aiLoading && (
+              <p className="text-xs text-indigo-100/80">
+                AI ұсыныстарын есептеу жүріп жатыр...
+              </p>
+            )}
+
+            {/* 2. AI успешный ответ */}
+            {!aiLoading && aiText && (
+              <div className="text-xs text-indigo-100/90 whitespace-pre-line">
+                {aiText}
+              </div>
+            )}
+
+            {/* 3. Фоллбек — rule-based рекомендации (если AI не дал ответ) */}
+            {!aiLoading && !aiText && (
+              <ul className="space-y-2 text-xs text-indigo-100/90">
+                {aiRecommendations.map((rec, idx) => (
+                  <li key={idx} className="flex gap-2">
+                    <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                    <span>{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 

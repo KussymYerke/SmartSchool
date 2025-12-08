@@ -9,7 +9,7 @@ export const OrdersPage: React.FC = () => {
     {
       title: "Әдістемелік нұсқау хат (2024–2025)",
       type: "Әдістемелік құжат",
-      link: "/files/methodical-letter.pdf", // <-- добавь свой файл в public/files/
+      link: "/files/file.pdf",
     },
     {
       title: "№500 бұйрық — 2022 жылғы оқу жылының тәртібі",
