@@ -233,9 +233,9 @@ export const DeputyDashboardPage: React.FC = () => {
   }, []);
 
   // Цвета для круговых диаграмм
-  const ABSENCE_COLORS = ["#f97373", "#38bdf8"]; // Себепсіз / Себепті
-  const HOMEWORK_COLORS = ["#22c55e", "#64748b"]; // Орындаған / Орындамаған
-  const STUDENT_COLORS = ["#60a5fa", "#f472b6"]; // Ұл / Қыз
+  const ABSENCE_COLORS = ["#f97373", "#38bdf8"];
+  const HOMEWORK_COLORS = ["#22c55e", "#64748b"];
+  const STUDENT_COLORS = ["#60a5fa", "#f472b6"];
   const GRADE_COLORS = ["#22c55e", "#1e293b"]; // Норм / қалған бөлігі
   const RISK_COLORS = ["#ef4444", "#facc15", "#22c55e"]; // Жоғары / Орташа / Төмен
 
@@ -292,9 +292,7 @@ export const DeputyDashboardPage: React.FC = () => {
         </button>
       </header>
 
-      {/* ВЕРХ: 3 КЛЮЧЕВЫЕ КАРТОЧКИ С КРУГАМИ */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Оқушылар + ұл/қыз круг */}
         <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 flex items-center gap-4">
           <div className="flex-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
@@ -322,9 +320,9 @@ export const DeputyDashboardPage: React.FC = () => {
                   outerRadius={38}
                   paddingAngle={2}
                 >
-                  {studentsPieData.map((index: any) => (
+                  {studentsPieData.map((entry, index) => (
                     <Cell
-                      key={`students-cell-${index}`}
+                      key={`students-cell-${entry.name}-${index}`}
                       fill={STUDENT_COLORS[index % STUDENT_COLORS.length]}
                     />
                   ))}
@@ -375,9 +373,9 @@ export const DeputyDashboardPage: React.FC = () => {
                   outerRadius={38}
                   paddingAngle={2}
                 >
-                  {gradePieData.map((index: any) => (
+                  {gradePieData.map((entry, index) => (
                     <Cell
-                      key={`grade-cell-${index}`}
+                      key={`grade-cell-${entry.name}-${index}`}
                       fill={GRADE_COLORS[index % GRADE_COLORS.length]}
                     />
                   ))}
@@ -439,9 +437,9 @@ export const DeputyDashboardPage: React.FC = () => {
                   outerRadius={38}
                   paddingAngle={2}
                 >
-                  {riskPieData.map((index: any) => (
+                  {riskPieData.map((entry, index) => (
                     <Cell
-                      key={`risk-cell-${index}`}
+                      key={`risk-cell-${entry.name}-${index}`}
                       fill={RISK_COLORS[index % RISK_COLORS.length]}
                     />
                   ))}
@@ -601,9 +599,9 @@ export const DeputyDashboardPage: React.FC = () => {
                       outerRadius={32}
                       paddingAngle={2}
                     >
-                      {absencesPieData.map((index: any) => (
+                      {absencesPieData.map((entry, index) => (
                         <Cell
-                          key={`absence-cell-${index}`}
+                          key={`absence-cell-${entry.name}-${index}`}
                           fill={ABSENCE_COLORS[index % ABSENCE_COLORS.length]}
                         />
                       ))}
@@ -659,9 +657,9 @@ export const DeputyDashboardPage: React.FC = () => {
                       outerRadius={32}
                       paddingAngle={2}
                     >
-                      {homeworkPieData.map((index: any) => (
+                      {homeworkPieData.map((entry, index) => (
                         <Cell
-                          key={`hw-cell-${index}`}
+                          key={`hw-cell-${entry.name}-${index}`}
                           fill={HOMEWORK_COLORS[index % HOMEWORK_COLORS.length]}
                         />
                       ))}
