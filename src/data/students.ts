@@ -281,6 +281,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 2,
     subjectsAtRisk: ["math", "physics"],
   },
+
   // ---------- 8A сыныбы ----------
   {
     id: "8A-1",
@@ -303,9 +304,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.2,
     gradeTrend: -0.4,
-    absences: 7,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 5, // было 7
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 65,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "physics"],
@@ -359,11 +360,11 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.0,
     gradeTrend: -0.6,
-    absences: 10,
-    unexcusedAbsences: 3,
-    lowActivity: true,
+    absences: 7, // было 10
+    unexcusedAbsences: 2, // было 3
+    lowActivity: false, // было true
     homeworkCompletion: 58,
-    teacherAlerts: 2,
+    teacherAlerts: 1, // было 2
     subjectsAtRisk: ["math", "english"],
   },
   {
@@ -387,7 +388,7 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.4,
     gradeTrend: -0.2,
-    absences: 6,
+    absences: 5, // было 6
     unexcusedAbsences: 1,
     lowActivity: false,
     homeworkCompletion: 72,
@@ -464,6 +465,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: [],
   },
+
   // ---------- 8B сыныбы ----------
   {
     id: "8B-1",
@@ -514,9 +516,9 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.1,
     gradeTrend: -0.5,
-    absences: 8,
-    unexcusedAbsences: 3,
-    lowActivity: true,
+    absences: 7, // было 8
+    unexcusedAbsences: 2, // было 3
+    lowActivity: false, // было true
     homeworkCompletion: 60,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "physics", "informatics"],
@@ -556,9 +558,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.3,
     gradeTrend: -0.3,
-    absences: 7,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 5, // было 7
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 68,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "english"],
@@ -584,11 +586,11 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 2.9,
     gradeTrend: -0.8,
-    absences: 12,
-    unexcusedAbsences: 4,
-    lowActivity: true,
+    absences: 7, // было 12
+    unexcusedAbsences: 2, // было 4
+    lowActivity: false,
     homeworkCompletion: 52,
-    teacherAlerts: 2,
+    teacherAlerts: 1, // было 2
     subjectsAtRisk: ["math", "kazakh", "historyKZ"],
   },
   {
@@ -619,6 +621,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 3,
     subjectsAtRisk: ["math", "physics", "chemistry", "kazakh"],
   },
+
   // ---------- 9A ----------
   {
     id: "9A-1",
@@ -641,9 +644,9 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.1,
     gradeTrend: -0.4,
-    absences: 9,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 7, // было 9
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 60,
     teacherAlerts: 1,
     subjectsAtRisk: ["kazakh", "historyKZ"],
@@ -669,8 +672,8 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.0,
     gradeTrend: -0.5,
-    absences: 10,
-    unexcusedAbsences: 3,
+    absences: 8, // было 10
+    unexcusedAbsences: 2, // было 3
     lowActivity: true,
     homeworkCompletion: 55,
     teacherAlerts: 1,
@@ -865,9 +868,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.0,
     gradeTrend: -0.4,
-    absences: 9,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 7, // было 9
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 59,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "chemistry"],
@@ -886,6 +889,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: [],
   },
+
   // ---------- 9B ----------
   {
     id: "9B-1",
@@ -936,7 +940,7 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.3,
     gradeTrend: -0.2,
-    absences: 6,
+    absences: 5, // было 6
     unexcusedAbsences: 1,
     lowActivity: false,
     homeworkCompletion: 74,
@@ -950,9 +954,9 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.0,
     gradeTrend: -0.5,
-    absences: 9,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 7, // было 9
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 58,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "physics"],
@@ -992,8 +996,8 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.2,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
     lowActivity: false,
     homeworkCompletion: 68,
     teacherAlerts: 1,
@@ -1048,9 +1052,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.0,
     gradeTrend: -0.4,
-    absences: 8,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 62,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "kazakh"],
@@ -1167,6 +1171,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: ["kazakh"],
   },
+
   // ---------- 10B ----------
   {
     id: "10B-1",
@@ -1189,8 +1194,8 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.2,
     gradeTrend: -0.3,
-    absences: 7,
-    unexcusedAbsences: 2,
+    absences: 6, // было 7
+    unexcusedAbsences: 1, // было 2
     lowActivity: false,
     homeworkCompletion: 68,
     teacherAlerts: 1,
@@ -1245,9 +1250,9 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.1,
     gradeTrend: -0.4,
-    absences: 9,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 7, // было 9
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 60,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "physics"],
@@ -1385,9 +1390,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.1,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 65,
     teacherAlerts: 1,
     subjectsAtRisk: ["kazakh", "math"],
@@ -1406,6 +1411,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: [],
   },
+
   // ---------- 10A ----------
   {
     id: "10A-1",
@@ -1428,7 +1434,7 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.2,
     gradeTrend: -0.3,
-    absences: 7,
+    absences: 6, // было 7
     unexcusedAbsences: 1,
     lowActivity: false,
     homeworkCompletion: 70,
@@ -1512,8 +1518,8 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.3,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
     lowActivity: false,
     homeworkCompletion: 72,
     teacherAlerts: 1,
@@ -1603,6 +1609,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: [],
   },
+
   // ---------- 11A ----------
   {
     id: "11A-1",
@@ -1695,9 +1702,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.3,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
-    lowActivity: false,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 70,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "kazakh"],
@@ -1814,6 +1821,7 @@ export const STUDENTS: Student[] = [
     teacherAlerts: 0,
     subjectsAtRisk: [],
   },
+
   // ---------- 11B ----------
   {
     id: "11B-1",
@@ -1892,9 +1900,9 @@ export const STUDENTS: Student[] = [
     gender: "female",
     avgGrade: 3.2,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 68,
     teacherAlerts: 1,
     subjectsAtRisk: ["kazakh", "historyKZ"],
@@ -2046,9 +2054,9 @@ export const STUDENTS: Student[] = [
     gender: "male",
     avgGrade: 3.2,
     gradeTrend: -0.3,
-    absences: 8,
-    unexcusedAbsences: 2,
-    lowActivity: true,
+    absences: 6, // было 8
+    unexcusedAbsences: 1, // было 2
+    lowActivity: false, // было true
     homeworkCompletion: 66,
     teacherAlerts: 1,
     subjectsAtRisk: ["math", "physics"],

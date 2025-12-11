@@ -1,15 +1,25 @@
 // src/pages/ClassProfilePage.tsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { STUDENTS } from "../data/students";
 import {
   calculateRiskScore,
   getRiskLevel,
   type Student,
 } from "../data/riskUtils";
+import { getClassAIRecommendations } from "../services/ai";
 
 type ClassProfilePageProps = {
   className: string;
   onBack: () => void;
+};
+
+type Totals = {
+  total: number;
+  girls: number;
+  boys: number;
+  avgGrade: number;
+  riskCount: number;
+  absences: number;
 };
 
 export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
@@ -21,7 +31,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
     [className]
   );
 
-  const totals = useMemo(() => {
+  const totals: Totals = useMemo(() => {
     const girls = students.filter((s) => s.gender === "female").length;
     const boys = students.filter((s) => s.gender === "male").length;
     const avgGrade =
@@ -44,30 +54,31 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
     };
   }, [students]);
 
-  // ---- Демо-данные для графика по четвертям (на основе среднего балла) ----
+  // ---- Демо-данные для графика по четвертям ----
   const quarterGrades = useMemo(() => {
     const base = totals.avgGrade || 3.5;
     const clamp = (v: number) => Math.max(2, Math.min(5, v));
+
     return [
-      { label: "1 тоқсан", value: clamp(base - 0.3) },
-      { label: "2 тоқсан", value: clamp(base - 0.1) },
+      { label: "1 тоқсан", value: clamp(base - 0.2) },
+      { label: "2 тоқсан", value: clamp(base) },
     ];
   }, [totals.avgGrade]);
 
-  // ---- Демо-heatmap пропусков по месяцам (на основе общих пропусков) ----
+  // ---- Демо-heatmap пропусков по месяцам ----
   const absencesByMonth = useMemo(() => {
-    // Учебный год: сентябрь–май (9 месяцев). Распределим с коеф. нагрузки.
     const months = [
       { key: "sep", label: "Қыр" },
       { key: "oct", label: "Қаз" },
       { key: "nov", label: "Қар" },
+      { key: "dec", label: "Жел" },
     ];
-    const weights = [0.08, 0.1, 0.12];
+    const weights = [0.07, 0.09, 0.1, 0.08, 0.09, 0.1, 0.12, 0.17, 0.18];
     const total = totals.absences || 0;
 
     return months.map((m, idx) => ({
       ...m,
-      count: Math.round(total * weights[idx]),
+      count: Math.round(total * (weights[idx] ?? 0.1)),
     }));
   }, [totals.absences]);
 
@@ -78,22 +89,29 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
         <div>
           <button
             onClick={onBack}
-            className="mb-2 inline-flex items-center text-xs px-2 py-1 rounded-full border border-slate-700 text-slate-300 hover:bg-slate-800"
+            className="mb-2 inline-flex items-center text-xs px-2.5 py-1.5 rounded-full border border-slate-700/80 text-slate-300 hover:bg-slate-800/70 transition"
           >
             ← Артқа / Назад
           </button>
           <h2 className="text-xl md:text-2xl font-semibold tracking-tight text-slate-50">
-            Сынып профилі · {className}
+            {className} · сынып профилі
           </h2>
-          <p className="text-sm text-slate-400">
-            Бұл сынып бойынша толық аналитика: құрамы, үлгерім, қауіп тобы және
-            қатыспау.
+          <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-xl">
+            Сыныптың қысқа портреті: құрамы, орташа баға, қатыспау және AI
+            анықтаған тәуекел топ.
           </p>
+        </div>
+
+        <div className="hidden md:flex flex-col items-end text-[11px] text-slate-400">
+          <span>Барлығы: {totals.total} оқушы</span>
+          <span>
+            Қыздар: {totals.girls} · Ұлдар: {totals.boys}
+          </span>
         </div>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         <SummaryCard
           title="Барлық оқушы"
           value={totals.total}
@@ -125,51 +143,50 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
           subtitle="/ 5.0"
         />
         <SummaryCard
-          title="Қауіп тобындағы"
+          title="Қауіп тобында"
           value={totals.riskCount}
-          subtitle="AI анықтаған"
+          subtitle="AI белгіледі"
           variant="danger"
         />
       </div>
 
-      {/* График + heatmap + AI-рекомендации */}
+      {/* Графики + AI-рекомендации */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Line chart успеваемости */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-50 mb-1">
               Тоқсан бойынша үлгерім
             </h3>
             <p className="text-xs text-slate-400">
-              Орташа баға (1–5) әр тоқсан бойынша. Кейін бұл деректер БЖБ/ТЖБ,
-              СОР/СОЧ жүйесінен автоматты түрде түседі.
+              1–4 тоқсан бойынша орташа баға. Кейін нақты БЖБ/ТЖБ деректерімен
+              алмастыруға болады.
             </p>
           </div>
           <ClassQuarterLineChart data={quarterGrades} />
         </div>
 
         {/* Heatmap пропусков */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-50 mb-1">
-              Қатыспау heatmap (айлар бойынша)
+              Қатыспау жыл бойы
             </h3>
             <p className="text-xs text-slate-400">
-              Жыл бойындағы қатыспау динамикасы. Қою түс — көбірек қатыспау.
+              Қай айларда қатыспау көбірек. Қою түс — көп қатыспау.
             </p>
           </div>
           <AbsencesHeatmap data={absencesByMonth} />
         </div>
 
         {/* AI-рекомендации */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
+        <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 flex flex-col gap-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-50 mb-1">
               AI-рекомендациялар по классу
             </h3>
             <p className="text-xs text-slate-400">
-              Черновой вариант: логика на основе текущих метрик. Потом можно
-              подвязать к реальной AI-модели.
+              Бұл жерде нақты Groq моделінен келетін ұсыныстар көрсетіледі.
             </p>
           </div>
           <ClassAiRecommendations
@@ -181,8 +198,8 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
       </div>
 
       {/* Таблица учеников */}
-      <div className="rounded-2xl bg-slate-950/80 border border-slate-800 overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-xs uppercase tracking-wide text-slate-400 bg-slate-900/80 border-b border-slate-800">
+      <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 overflow-hidden">
+        <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-[11px] uppercase tracking-wide text-slate-400 bg-slate-900/90 border-b border-slate-800">
           <div className="col-span-4">Оқушы</div>
           <div className="col-span-2 text-center">Орта баға</div>
           <div className="col-span-2 text-center">Қатыспау</div>
@@ -190,7 +207,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
           <div className="col-span-2 text-center">Тәуекел</div>
         </div>
 
-        <div className="divide-y divide-slate-800">
+        <div className="divide-y divide-slate-800/80">
           {students.length === 0 && (
             <div className="px-4 py-6 text-sm text-slate-400 text-center">
               Бұл сыныпқа оқушылар енгізілмеген.
@@ -222,7 +239,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
             return (
               <div
                 key={s.id}
-                className="px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center"
+                className="px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-slate-900/60 transition-colors"
               >
                 <div className="md:col-span-4">
                   <p className="text-sm font-medium text-slate-50">
@@ -241,7 +258,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
                 </div>
 
                 <div className="md:col-span-2 text-xs md:text-center text-slate-200">
-                  Барлығы: {s.absences}
+                  <span>Барлығы: {s.absences}</span>
                   <span className="ml-2 text-red-300">
                     · Себепсіз: {s.unexcusedAbsences}
                   </span>
@@ -256,7 +273,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
                   {s.subjectsAtRisk.map((subj: string) => (
                     <span
                       key={subj}
-                      className="text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-200 border border-indigo-500/30"
+                      className="text-[11px] px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-200 border border-indigo-500/30"
                     >
                       {subj}
                     </span>
@@ -306,18 +323,24 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
       ? "from-sky-500/80 to-cyan-500/40"
       : variant === "danger"
       ? "from-red-500/80 to-rose-500/40"
-      : "from-primary-500/80 to-accent-500/40";
+      : "from-indigo-500/80 to-cyan-500/40";
 
   return (
     <div className="relative overflow-hidden bg-slate-900/80 border border-slate-800/70 rounded-3xl p-4 shadow-soft">
       <div
-        className={`pointer-events-none absolute -right-10 -top-10 h-24 w-24 rounded-full bg-gradient-to-br ${accentClass} opacity-20`}
+        className={`pointer-events-none absolute -right-8 -top-8 h-20 w-20 rounded-full bg-gradient-to-br ${accentClass} opacity-20`}
       />
       <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400 mb-1">
         {title}
       </p>
-      <div className="text-2xl md:text-3xl font-semibold">{value}</div>
-      {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+      <div className="text-2xl md:text-3xl font-semibold text-slate-50">
+        {value}
+      </div>
+      {subtitle && (
+        <p className="text-xs text-slate-400 mt-1 whitespace-nowrap">
+          {subtitle}
+        </p>
+      )}
     </div>
   );
 };
@@ -352,9 +375,9 @@ const ClassQuarterLineChart: React.FC<{ data: QuarterPoint[] }> = ({
     <div className="flex flex-col gap-2">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-24 text-primary-400"
+        className="w-full h-24 text-indigo-400"
       >
-        {/* grid */}
+        {/* baseline */}
         <line
           x1={0}
           y1={height}
@@ -385,7 +408,7 @@ const ClassQuarterLineChart: React.FC<{ data: QuarterPoint[] }> = ({
             cx={p.x}
             cy={p.y}
             r={3}
-            className="fill-primary-400"
+            className="fill-indigo-400"
           />
         ))}
       </svg>
@@ -400,8 +423,8 @@ const ClassQuarterLineChart: React.FC<{ data: QuarterPoint[] }> = ({
         ))}
       </div>
       <p className="text-[10px] text-slate-500">
-        Егер 3-тоқсан мен 4-тоқсанда баға түссе – БЖБ/ТЖБ нәтижелерін және үй
-        тапсырмалары бойынша кері байланысты талдау қажет.
+        Егер 3–4 тоқсанда баға түссе – БЖБ/ТЖБ нәтижесін және үй тапсырмасын
+        талдау керек.
       </p>
     </div>
   );
@@ -427,116 +450,148 @@ const AbsencesHeatmap: React.FC<{ data: MonthAbsence[] }> = ({ data }) => {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2 text-[11px]">
-      {data.map((m) => (
-        <div
-          key={m.key}
-          className={
-            "rounded-xl px-2 py-2 flex flex-col items-center justify-center border border-slate-700/40 " +
-            intensityClass(m.count)
-          }
-        >
-          <span className="font-semibold">{m.label}</span>
-          <span className="mt-1">{m.count} күн</span>
-        </div>
-      ))}
-      <p className="col-span-3 text-[10px] text-slate-500 mt-1">
-        Қызылға жақын айлар — сыныптың қатысуын бақылауды күшейту керек кезең.
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
+        {data.map((m) => (
+          <div
+            key={m.key}
+            className={
+              "rounded-xl px-2 py-2 flex flex-col items-center justify-center border border-slate-700/40 " +
+              intensityClass(m.count)
+            }
+          >
+            <span className="font-semibold">{m.label}</span>
+            <span className="mt-1">{m.count} күн</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-slate-500">
+        Қызылға жақын айлар — сыныптың қатысуын ерекше бақылау керек кезеңдер.
       </p>
     </div>
   );
 };
 
-// ---------- AI-рекомендации по классу ----------
-type Totals = {
-  total: number;
-  girls: number;
-  boys: number;
-  avgGrade: number;
-  riskCount: number;
-  absences: number;
-};
-
+// ---------- AI-рекомендации по классу (реальный AI) ----------
 const ClassAiRecommendations: React.FC<{
   className: string;
   totals: Totals;
   students: Student[];
 }> = ({ className, totals, students }) => {
-  const tips: string[] = [];
+  const [text, setText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const girlShare =
-    totals.total === 0 ? 0 : Math.round((totals.girls / totals.total) * 100);
-  const boyShare =
-    totals.total === 0 ? 0 : Math.round((totals.boys / totals.total) * 100);
+  // Подготовим "контекст" для AI, но без гигантских объектов
+  useEffect(() => {
+    let cancelled = false;
 
-  if (totals.avgGrade < 3.5) {
-    tips.push(
-      "Тоғытылған пәндер бойынша тақырыптық қайталау аптасын жоспарлау (мини-диагностика + шағын топтармен жұмыс)."
+    async function run() {
+      // если нет учеников — нет смысла грузить модель
+      if (!students.length) {
+        setText(
+          "Бұл сыныпқа оқушылар енгізілмеген, сондықтан AI кеңес бере алмайды."
+        );
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const ctx = {
+          className,
+          totals,
+          // Чтобы не слать огромный массив, ограничим 15 учениками
+          students: students.slice(0, 15).map((s) => ({
+            fullName: s.fullName,
+            avgGrade: s.avgGrade,
+            unexcusedAbsences: s.unexcusedAbsences,
+            subjectsAtRisk: s.subjectsAtRisk,
+          })),
+        };
+
+        const resp = await getClassAIRecommendations(ctx, "kk");
+
+        if (!cancelled) {
+          setText(resp);
+        }
+      } catch (e: any) {
+        console.error(e);
+        if (!cancelled) {
+          setError("AI-қызметі қолжетімсіз. Кейінірек қайталап көріңіз.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    className,
+    totals.total,
+    totals.avgGrade,
+    totals.riskCount,
+    totals.absences,
+    students,
+  ]);
+
+  if (loading && !text) {
+    return (
+      <div className="text-xs text-slate-400 flex items-center gap-2">
+        <span className="inline-block h-3 w-3 rounded-full border border-emerald-400 border-t-transparent animate-spin" />
+        <span>AI ұсыныстарын есептеп жатырмыз...</span>
+      </div>
     );
   }
 
-  if (totals.riskCount >= Math.max(3, Math.round(totals.total * 0.2))) {
-    tips.push(
-      "Қауіп тобындағы оқушылар үшін жеке бақылау картасын жасау: ата-анамен байланыс, пән мұғалімдерінің ескертулері және психологиялық қолдау."
+  if (error) {
+    return (
+      <div className="text-[11px] rounded-xl border border-red-500/50 bg-red-500/10 px-3 py-2 text-red-200">
+        {error}
+      </div>
     );
   }
 
-  if (totals.absences > totals.total * 4) {
-    tips.push(
-      "Сынып жетекшісімен бірге қатыспау себептерін талдап, таңғы келген-келмеген мониторингін 2–3 аптаға күшейту."
+  if (!text) {
+    return (
+      <div className="text-xs text-slate-500">
+        AI ұсынысы әлі дайын емес. Бір сәттен кейін қайта жүктеп көріңіз.
+      </div>
     );
   }
 
-  if (Math.abs(girlShare - boyShare) >= 30) {
-    tips.push(
-      "Гендерлік баланс тең емес: сыныптағы рөлдік ойындар мен жобаларда ұлдар мен қыздарға тең мүмкіндік беру маңызды."
-    );
-  }
-
-  const highAlertStudents = students
-    .map((s) => ({ s, score: calculateRiskScore(s) }))
-    .filter(({ score }) => score >= 10)
-    .slice(0, 3);
-
-  if (highAlertStudents.length) {
-    tips.push(
-      "Ең жоғары тәуекелдегі оқушылармен (3 оқушыға дейін) жеке кездесу өткізу: оқу мотивациясы, режим және үй тапсырмасын ұйымдастыру."
-    );
-  }
-
-  if (!tips.length) {
-    tips.push(
-      "Сыныптың жалпы жағдайы тұрақты. Үлгерім мен қатыспау динамикасын ағымдағы деңгейде бақылауды жалғастыру жеткілікті."
-    );
-  }
+  // Разбиваем текст на абзацы по пустым строкам
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return (
-    <div className="space-y-2 text-xs text-slate-200">
+    <div className="text-xs text-slate-200 space-y-2">
       <p className="text-[11px] text-slate-400">
-        Сынып: <span className="font-semibold text-slate-100">{className}</span>
+        Сынып:{" "}
+        <span className="font-semibold text-slate-100 inline-block ml-1">
+          {className}
+        </span>
       </p>
-      <ul className="list-disc list-inside space-y-1">
-        {tips.map((tip, idx) => (
-          <li key={idx}>{tip}</li>
-        ))}
-      </ul>
 
-      {highAlertStudents.length > 0 && (
-        <div className="mt-2 rounded-xl bg-slate-950/80 border border-red-500/40 p-2">
-          <p className="text-[11px] font-semibold text-red-300 mb-1">
-            Фокус-топ (ең жоғары тәуекел):
-          </p>
-          <ul className="text-[11px] space-y-0.5">
-            {highAlertStudents.map(({ s, score }) => (
-              <li key={s.id}>
-                {s.fullName} — score: {score}, орташа баға:{" "}
-                {s.avgGrade.toFixed(1)}, себепсіз қатыспау:{" "}
-                {s.unexcusedAbsences}
-              </li>
-            ))}
-          </ul>
+      <div className="rounded-xl bg-slate-950/70 border border-slate-700/60 px-3 py-2.5 text-xs max-h-56 overflow-y-auto">
+        <div className="space-y-2 leading-relaxed">
+          {paragraphs.map((p, idx) => (
+            <p key={idx}>{p}</p>
+          ))}
         </div>
-      )}
+      </div>
+
+      <p className="text-[10px] text-slate-500">
+        Кеңестер AI моделінен автоматты түрде жасалды. Завуч пен сынып жетекші
+        нақты жағдайға қарай түзетіп қолдана алады.
+      </p>
     </div>
   );
 };

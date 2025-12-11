@@ -209,6 +209,61 @@ const getGradeFromClassName = (name: string): GradeFilter => {
   return "all";
 };
 
+const RadialCircle: React.FC<{
+  value: number;
+  max?: number;
+  label: string;
+  className?: string;
+}> = ({ value, max = 5, label, className }) => {
+  const size = 64;
+  const stroke = 6;
+  const center = size / 2;
+  const radius = center - stroke;
+  const circ = 2 * Math.PI * radius;
+
+  const filled = (value / max) * circ;
+
+  return (
+    <div className={`flex flex-col items-center ${className ?? ""}`}>
+      <svg width={size} height={size} className="overflow-visible">
+        {/* фон */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          stroke="rgba(148, 163, 184, 0.4)" // slate-400/40
+          strokeWidth={stroke}
+          fill="none"
+        />
+        {/* прогресс */}
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={stroke}
+          strokeDasharray={circ}
+          strokeDashoffset={circ - filled}
+          strokeLinecap="round"
+          fill="none"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+        {/* значение */}
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="middle"
+          textAnchor="middle"
+          className="text-[13px] font-semibold fill-white"
+        >
+          {value.toFixed(1)}
+        </text>
+      </svg>
+      <span className="mt-1 text-[10px] text-slate-300">{label}</span>
+    </div>
+  );
+};
+
 export const AssessmentsPage: React.FC = () => {
   const { t } = useI18n();
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>("all");
@@ -320,7 +375,7 @@ export const AssessmentsPage: React.FC = () => {
         <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800/70 rounded-3xl p-4 md:p-5 shadow-soft flex flex-col gap-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-50 mb-1">
-              Предметтер бойынша орташа балл (мектеп бойынша)
+              Пәндер бойынша орташа балл (мектеп бойынша)
             </h3>
             <p className="text-xs text-slate-400">
               БЖБ/СОР және ТЖБ/СОЧ орташа балл. 5.0 – максимум. Бұл блок бүкіл
@@ -357,7 +412,6 @@ export const AssessmentsPage: React.FC = () => {
           ))}
         </div>
 
-        {/* Детализация выбранного класса */}
         {selectedClassName && (
           <div className="mt-6 border-t border-slate-800 pt-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -379,7 +433,11 @@ export const AssessmentsPage: React.FC = () => {
               </p>
             ) : (
               <div className="bg-slate-950/70 border border-slate-800 rounded-3xl p-4">
-                <SubjectsBarChart data={selectedClassSubjects} />
+                {/* ВАЖНО: key */}
+                <SubjectsBarChart
+                  key={selectedClassName}
+                  data={selectedClassSubjects}
+                />
               </div>
             )}
           </div>
@@ -430,48 +488,58 @@ const SummaryCard: React.FC<SummaryCardProps> = ({
   );
 };
 
-// ---------- Bar chart for subjects ----------
 const SubjectsBarChart: React.FC<{ data: SubjectAssessStats[] }> = ({
   data,
 }) => {
   if (!data.length) return null;
 
-  const max = 5; // max score
-
   return (
-    <div className="space-y-3">
-      {data.map((row) => {
-        const sorWidth = `${(row.sorAvg / max) * 100}%`;
-        const sochWidth = `${(row.sochAvg / max) * 100}%`;
-        return (
-          <div key={row.subject} className="space-y-1">
-            <div className="flex justify-between text-[11px] text-slate-300">
-              <span>{row.subject}</span>
-              <span>
-                БЖБ/СОР: {row.sorAvg.toFixed(1)} · ТЖБ/СОЧ:{" "}
-                {row.sochAvg.toFixed(1)}
-              </span>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {data.map((row) => (
+        <div
+          key={row.subject}
+          className="rounded-3xl bg-slate-950/60 border border-slate-800 p-4 flex gap-4 items-center hover:bg-slate-900 transition"
+        >
+          {/* Две отдельные круговые диаграммы */}
+          <div className="flex gap-3">
+            <div className="text-sky-400">
+              <RadialCircle value={row.sorAvg} label="БЖБ / СОР" />
             </div>
-            <div className="w-full h-4 rounded-full bg-slate-800 flex overflow-hidden">
-              <div
-                className="h-full bg-primary-500/80"
-                style={{ width: sorWidth }}
-              />
-              <div
-                className="h-full bg-sky-500/70"
-                style={{ width: sochWidth }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>Төмен нәтиже үлесі: {row.lowShare}%</span>
-              <span>5.0 — максимум</span>
+            <div className="text-violet-400">
+              <RadialCircle value={row.sochAvg} label="ТЖБ / СОЧ" />
             </div>
           </div>
-        );
-      })}
-      <p className="text-[10px] text-slate-500">
-        Кеңес: егер пән бойынша ТЖБ/СОЧ БЖБ/СОР-ға қарағанда айтарлықтай төмен
-        болса, қорытынды бақылау алдындағы дайындықты талдау қажет.
+
+          {/* Текстовая часть */}
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-slate-100">
+              {row.subject}
+            </span>
+
+            <span className="text-xs text-slate-400 mt-1">
+              БЖБ/СОР орташа балл:{" "}
+              <span className="text-sky-300 font-medium">
+                {row.sorAvg.toFixed(1)} / 5.0
+              </span>
+            </span>
+
+            <span className="text-xs text-slate-400">
+              ТЖБ/СОЧ орташа балл:{" "}
+              <span className="text-violet-300 font-medium">
+                {row.sochAvg.toFixed(1)} / 5.0
+              </span>
+            </span>
+
+            <span className="text-xs text-amber-300 mt-2">
+              🔥 Төмен нәтиже үлесі: {row.lowShare}%{" "}
+              <span className="text-slate-400">(2–3 алған жұмыстар)</span>
+            </span>
+          </div>
+        </div>
+      ))}
+      <p className="text-[10px] text-slate-500 col-span-full mt-1">
+        Кеңес: ТЖБ/СОЧ БЖБ/СОР-ға қарағанда айқын төмен пәндер — қорытынды
+        бақылауға дайындықты терең талдауды қажет ететін бағыттар.
       </p>
     </div>
   );
@@ -519,32 +587,46 @@ const ClassAssessCard: React.FC<{
       </div>
 
       {/* stacked bar */}
-      <div className="mt-1">
-        <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+      {/* распределение результатов по уровням */}
+      <div className="mt-2 space-y-1.5">
+        <div className="flex justify-between text-[11px] text-slate-400">
           <span>Нәтижелер құрылымы</span>
-          <span>100%</span>
         </div>
-        <div className="w-full h-3 rounded-full bg-slate-800 overflow-hidden flex text-[0]">
-          <div
-            className="h-full bg-red-500/70"
-            style={{ width: `${low}%` }}
-            title="2–3"
-          />
-          <div
-            className="h-full bg-amber-500/80"
-            style={{ width: `${mid}%` }}
-            title="3–4"
-          />
-          <div
-            className="h-full bg-emerald-500/80"
-            style={{ width: `${high}%` }}
-            title="4–5"
-          />
+
+        {/* 2–3 */}
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="w-8 text-red-200">2–3</span>
+          <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-red-500/80"
+              style={{ width: `${low}%` }}
+            />
+          </div>
+          <span className="w-10 text-right text-slate-300">{low}%</span>
         </div>
-        <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-          <span>2–3: {low}%</span>
-          <span>3–4: {mid}%</span>
-          <span>4–5: {high}%</span>
+
+        {/* 3–4 */}
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="w-8 text-amber-200">3–4</span>
+          <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-amber-400/80"
+              style={{ width: `${mid}%` }}
+            />
+          </div>
+          <span className="w-10 text-right text-slate-300">{mid}%</span>
+        </div>
+
+        {/* 4–5 */}
+        <div className="flex items-center gap-2 text-[10px]">
+          <span className="w-8 text-emerald-200">4–5</span>
+          <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${high}%` }}
+            />
+          </div>
+          <span className="w-10 text-right text-slate-300">{high}%</span>
         </div>
       </div>
 

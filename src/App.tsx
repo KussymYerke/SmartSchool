@@ -12,6 +12,13 @@ import { StudentProfilePage } from "./pages/StudentProfilePage";
 import { TeacherProfilePage } from "./pages/TeacherProfilePage";
 import { ClassProfilePage } from "./pages/ClassProfilePage";
 
+// 👇 добавили
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { RoleSelectPage } from "./pages/RoleSelectPage";
+import { DeputyDashboardPage } from "./pages/DeputyDashboardPage";
+import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { PsychologistDashboardPage } from "./pages/PsychologistDashboardPage";
+
 export type PageKey =
   | "dashboard"
   | "orders"
@@ -23,12 +30,14 @@ export type PageKey =
   | "teacherProfile"
   | "classProfile";
 
-const App: React.FC = () => {
+// Внутренний App, который уже знает про роль
+const AppInner: React.FC = () => {
+  const { role } = useAuth(); // 👈 кто сейчас залогинен: завуч / учитель / психолог / null
+
   const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   );
-
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(
     null
   );
@@ -69,7 +78,6 @@ const App: React.FC = () => {
         return <AssessmentsPage />;
       case "risk":
         return <RiskStudentsPage onSelectStudent={handleOpenStudentProfile} />;
-
       case "studentProfile":
         return (
           selectedStudentId && (
@@ -98,11 +106,24 @@ const App: React.FC = () => {
           )
         );
       case "dashboard":
-      default:
-        return <DashboardPage onNavigate={setCurrentPage} />;
+        return role === "deputy" ? (
+          <DeputyDashboardPage />
+        ) : role === "teacher" ? (
+          <TeacherDashboardPage />
+        ) : role === "psychologist" ? (
+          <PsychologistDashboardPage />
+        ) : (
+          <DashboardPage onNavigate={setCurrentPage} />
+        );
     }
   };
 
+  // 👇 Если роль ещё не выбрана — показываем экран выбора роли вместо всей админки
+  if (!role) {
+    return <RoleSelectPage />;
+  }
+
+  // 👇 Когда роль выбрана — твоя обычная админка
   return (
     <div className="min-h-screen bg-slate-950 flex text-slate-50">
       <Sidebar currentPage={currentPage} onChangePage={setCurrentPage} />
@@ -113,6 +134,15 @@ const App: React.FC = () => {
         </main>
       </div>
     </div>
+  );
+};
+
+// Внешний App, который оборачивает всё в AuthProvider
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 };
 

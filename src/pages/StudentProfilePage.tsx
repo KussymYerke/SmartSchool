@@ -6,6 +6,9 @@ import {
   calculateRiskScore,
   getRiskLevel,
   type RiskLevel,
+  getRiskReasons,
+  getRoleRecommendations,
+  getPsychSignals,
 } from "../data/riskUtils";
 import {
   LineChart,
@@ -18,12 +21,20 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { getStudentAIRecommendations } from "../services/ai";
+import {
+  getStudentAIRecommendations,
+  getStudentAIRiskAnalysis,
+  type AIRiskAnalysis,
+} from "../services/ai";
 
 type StudentProfilePageProps = {
   studentId: string;
   onBack: () => void;
+  // роль можно подставить из auth-контекста
+  userRole?: UserRole;
 };
+
+type UserRole = "deputy" | "teacher" | "psychologist" | "parent" | "admin";
 
 const riskColorClass: Record<RiskLevel, string> = {
   none: "bg-slate-500/10 text-slate-300 border border-slate-600/40",
@@ -42,11 +53,13 @@ const riskLabel: Record<RiskLevel, string> = {
 export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   studentId,
   onBack,
+  userRole = "deputy", // по умолчанию завуч / админ
 }) => {
   const { t } = useI18n();
 
   const student = STUDENTS.find((s) => s.id === studentId);
 
+  // ---------- RISK SCORE ----------
   const { riskScore, riskLevel } = useMemo(() => {
     if (!student) return { riskScore: 0, riskLevel: "none" as RiskLevel };
     const score = calculateRiskScore(student);
@@ -54,89 +67,55 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     return { riskScore: score, riskLevel: level };
   }, [student]);
 
-  // AI state
+  // ---------- AI state: текст для завуча ----------
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  // const [aiError, setAiError] = useState<string | null>(null);
 
-  // Вызов реального AI при смене ученика
-  useEffect(() => {
-    if (!student) return;
+  // ---------- AI state: структурированный риск-анализ ----------
+  const [aiRisk, setAiRisk] = useState<AIRiskAnalysis | null>(null);
+  const [aiRiskLoading, setAiRiskLoading] = useState(false);
 
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        setAiLoading(true);
-        // setAiError(null);
-        setAiText(null);
-
-        // язык можно выбрать из useI18n, пока жёстко "kk"
-        const text = await getStudentAIRecommendations(student, "kk");
-
-        if (!cancelled) {
-          setAiText(text);
-        }
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) {
-          // setAiError("AI сервис уақытша қолжетімсіз.");
-        }
-      } finally {
-        if (!cancelled) {
-          setAiLoading(false);
-        }
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
+  // ---------- Rule-based fallback (old logic) ----------
+  const ruleBased = useMemo(() => {
+    if (!student) {
+      return {
+        reasons: [] as string[],
+        roleRecs: null as ReturnType<typeof getRoleRecommendations> | null,
+        psychSignals: [] as string[],
+      };
+    }
+    return {
+      reasons: getRiskReasons(student),
+      roleRecs: getRoleRecommendations(student),
+      psychSignals: getPsychSignals(student),
     };
   }, [student]);
 
-  // Синтетическая история оценок
-  const gradeHistory = useMemo(() => {
-    if (!student) return [];
-    const base = student.avgGrade;
-    const trend = student.gradeTrend;
+  // ---------- Финальные данные риска: AI -> fallback ----------
+  const riskData = useMemo(() => {
+    if (!student) {
+      return {
+        reasons: [] as string[],
+        roleRecs: null as ReturnType<typeof getRoleRecommendations> | null,
+        psychSignals: [] as string[],
+      };
+    }
 
-    const q1 = Math.min(5, Math.max(2, base - trend * 1.5));
-    const q2 = Math.min(5, Math.max(2, base - trend * 0.5));
+    return {
+      reasons: aiRisk?.reasons?.length ? aiRisk.reasons : ruleBased.reasons,
+      roleRecs:
+        aiRisk?.roleRecs &&
+        Object.values(aiRisk.roleRecs).some((arr) => arr.length > 0)
+          ? aiRisk.roleRecs
+          : ruleBased.roleRecs,
+      psychSignals: aiRisk?.psychSignals?.length
+        ? aiRisk.psychSignals
+        : ruleBased.psychSignals,
+    };
+  }, [student, aiRisk, ruleBased]);
 
-    return [
-      { quarter: "Q1", grade: Number(q1.toFixed(1)) },
-      { quarter: "Q2", grade: Number(q2.toFixed(1)) },
-    ];
-  }, [student]);
-
-  // Имитация пропусков по месяцам
-  const absencesHistory = useMemo(() => {
-    if (!student) return [];
-    const total = student.absences;
-    const unexcused = student.unexcusedAbsences;
-
-    const m1 = Math.round(total * 0.25);
-    const m2 = Math.round(total * 0.25);
-    const m3 = Math.round(total * 0.25);
-    const m4 = total - m1 - m2 - m3;
-
-    const u1 = Math.min(unexcused, Math.round(unexcused * 0.3));
-    const u2 = Math.min(unexcused - u1, Math.round(unexcused * 0.3));
-    const u3 = Math.min(unexcused - u1 - u2, Math.round(unexcused * 0.2));
-    const u4 = Math.max(0, unexcused - u1 - u2 - u3);
-
-    return [
-      { month: "Қыркүйек", abs: m1, unexcused: u1 },
-      { month: "Қазан", abs: m2, unexcused: u2 },
-      { month: "Қараша", abs: m3, unexcused: u3 },
-      { month: "Желтоқсан", abs: m4, unexcused: u4 },
-    ];
-  }, [student]);
-
-  // Старые rule-based рекомендации как fallback
-  const aiRecommendations = useMemo(() => {
+  // ---------- Старые rule-based рекомендации как fallback для AI блока ----------
+  const aiRecommendationsFallback = useMemo(() => {
     if (!student) return [];
 
     const recs: string[] = [];
@@ -186,6 +165,111 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     return recs;
   }, [student]);
 
+  // ---------- AI: длинный текст рекомендаций ----------
+  useEffect(() => {
+    if (!student) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        setAiLoading(true);
+        setAiText(null);
+
+        const text = await getStudentAIRecommendations(student, "kk");
+
+        if (!cancelled) {
+          setAiText(text);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!cancelled) {
+          setAiLoading(false);
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [student]);
+
+  // ---------- AI: структурированный риск-анализ (причины, сигналы, роли) ----------
+  useEffect(() => {
+    if (!student) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        setAiRiskLoading(true);
+        setAiRisk(null);
+
+        const data = await getStudentAIRiskAnalysis(student, "kk");
+
+        if (!cancelled) {
+          setAiRisk(data);
+        }
+      } catch (e) {
+        console.error("AI risk analysis error:", e);
+        // Ничего страшного — просто останемся на rule-based
+      } finally {
+        if (!cancelled) {
+          setAiRiskLoading(false);
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [student]);
+
+  // ---------- Синтетическая история оценок ----------
+  const gradeHistory = useMemo(() => {
+    if (!student) return [];
+    const base = student.avgGrade;
+    const trend = student.gradeTrend;
+
+    const q1 = Math.min(5, Math.max(2, base - trend * 1.5));
+    const q2 = Math.min(5, Math.max(2, base - trend * 0.5));
+
+    return [
+      { quarter: "Q1", grade: Number(q1.toFixed(1)) },
+      { quarter: "Q2", grade: Number(q2.toFixed(1)) },
+    ];
+  }, [student]);
+
+  // ---------- Имитация пропусков по месяцам ----------
+  const absencesHistory = useMemo(() => {
+    if (!student) return [];
+    const total = student.absences;
+    const unexcused = student.unexcusedAbsences;
+
+    const m1 = Math.round(total * 0.25);
+    const m2 = Math.round(total * 0.25);
+    const m3 = Math.round(total * 0.25);
+    const m4 = total - m1 - m2 - m3;
+
+    const u1 = Math.min(unexcused, Math.round(unexcused * 0.3));
+    const u2 = Math.min(unexcused - u1, Math.round(unexcused * 0.3));
+    const u3 = Math.min(unexcused - u1 - u2, Math.round(unexcused * 0.2));
+    const u4 = Math.max(0, unexcused - u1 - u2 - u3);
+
+    return [
+      { month: "Қыркүйек", abs: m1, unexcused: u1 },
+      { month: "Қазан", abs: m2, unexcused: u2 },
+      { month: "Қараша", abs: m3, unexcused: u3 },
+      { month: "Желтоқсан", abs: m4, unexcused: u4 },
+    ];
+  }, [student]);
+
+  // ---------- Если ученик не найден ----------
   if (!student) {
     return (
       <div className="space-y-4">
@@ -213,43 +297,72 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
       </button>
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-50">
-            {student.fullName}
-          </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            {student.className} ·{" "}
-            {student.gender === "male" ? "Ұл бала" : "Қыз бала"}
-          </p>
+      <div className="rounded-3xl bg-gradient-to-br from-slate-900/90 via-slate-950 to-slate-900/90 border border-slate-800/80 p-4 md:p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-50">
+              {student.fullName}
+            </h2>
+            <p className="text-sm text-slate-400 mt-1">
+              {student.className} ·{" "}
+              {student.gender === "male" ? "Ұл бала" : "Қыз бала"}
+            </p>
+          </div>
+
+          <div className="flex flex-col items-start md:items-end gap-2">
+            <span
+              className={
+                "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium " +
+                riskColorClass[riskLevel]
+              }
+            >
+              {riskLabel[riskLevel]}
+              <span className="ml-2 text-[10px] text-slate-300/80">
+                score: {riskScore}
+              </span>
+            </span>
+            <p className="text-xs text-slate-400">
+              {t("student.avgGradeLabel", "Жалпы орташа баға:")}{" "}
+              <span className="font-semibold text-slate-100">
+                {student.avgGrade.toFixed(1)} / 5.0
+              </span>
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-col items-start md:items-end gap-2">
-          <span
-            className={
-              "inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium " +
-              riskColorClass[riskLevel]
-            }
-          >
-            {riskLabel[riskLevel]}
-            <span className="ml-2 text-[10px] text-slate-300/80">
-              score: {riskScore}
-            </span>
-          </span>
-          <p className="text-xs text-slate-400">
-            {t("student.avgGradeLabel", "Жалпы орташа баға:")}{" "}
-            <span className="font-semibold text-slate-100">
-              {student.avgGrade.toFixed(1)} / 5.0
-            </span>
-          </p>
-        </div>
+        {/* Причины риска, компактно (AI -> fallback) */}
+        {riskData.reasons.length > 0 && (
+          <div className="mt-2">
+            <div className="max-w-3xl text-[11px] text-slate-300/90">
+              <p className="font-semibold text-slate-200 mb-1">
+                Причина риска:
+              </p>
+              {aiRiskLoading && (
+                <p className="text-[10px] text-slate-500 mb-1">
+                  AI талдау жүктелуде...
+                </p>
+              )}
+              <ul className="flex flex-wrap gap-1.5">
+                {riskData.reasons.map((r, idx) => (
+                  <li
+                    key={idx}
+                    className="px-2 py-1 rounded-full bg-slate-800/80 text-[11px] text-slate-100 border border-slate-700/70"
+                  >
+                    {r}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Верхний блок: инфо + AI блок + график оценок */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Левая колонка: инфо + AI */}
-        <div className="space-y-4 lg:col-span-1">
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4">
+      {/* Основная сетка: 2 колонки, чтобы не было пустоты справа/слева */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        {/* Левая колонка: инфо + график оценок */}
+        <div className="space-y-4">
+          {/* Основная информация */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5 shadow-soft">
             <h3 className="text-sm font-semibold text-slate-100 mb-3">
               {t("student.info", "Негізгі ақпарат")}
             </h3>
@@ -297,29 +410,69 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
             </dl>
           </div>
 
-          <div className="rounded-2xl bg-indigo-950/50 border border-indigo-500/40 p-4">
+          {/* График успеваемости */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5">
+            <h3 className="text-sm font-semibold text-slate-100 mb-3">
+              {t("student.gradeChart", "Үлгерім динамикасы (тоқсан бойынша)")}
+            </h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={gradeHistory}
+                  margin={{ left: -20, right: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="quarter" stroke="#9ca3af" fontSize={12} />
+                  <YAxis
+                    domain={[2, 5]}
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickCount={7}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#020617",
+                      border: "1px solid #1f2937",
+                      borderRadius: "0.75rem",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="grade"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    dot={{ r: 4, strokeWidth: 2, stroke: "#a5b4fc" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Правая колонка: AI + психосигналы + график пропусков */}
+        <div className="space-y-4">
+          {/* AI рекомендации */}
+          <div className="rounded-2xl bg-indigo-950/60 border border-indigo-500/40 p-4 md:p-5">
             <h3 className="text-sm font-semibold text-indigo-100 mb-3">
               {t("student.aiTitle", "AI ұсыныстар (завуч үшін)")}
             </h3>
 
-            {/* 1. Лоадер */}
             {aiLoading && (
               <p className="text-xs text-indigo-100/80">
                 AI ұсыныстарын есептеу жүріп жатыр...
               </p>
             )}
 
-            {/* 2. AI успешный ответ */}
             {!aiLoading && aiText && (
-              <div className="text-xs text-indigo-100/90 whitespace-pre-line">
+              <div className="text-xs text-indigo-100/90 whitespace-pre-line max-h-48 overflow-y-auto pr-1 custom-scroll-thin leading-relaxed">
                 {aiText}
               </div>
             )}
 
-            {/* 3. Фоллбек — rule-based рекомендации (если AI не дал ответ) */}
             {!aiLoading && !aiText && (
-              <ul className="space-y-2 text-xs text-indigo-100/90">
-                {aiRecommendations.map((rec, idx) => (
+              <ul className="space-y-2 text-xs text-indigo-100/90 leading-relaxed">
+                {aiRecommendationsFallback.map((rec, idx) => (
                   <li key={idx} className="flex gap-2">
                     <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-indigo-400" />
                     <span>{rec}</span>
@@ -328,70 +481,186 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
               </ul>
             )}
           </div>
-        </div>
 
-        {/* Правая часть: график оценок */}
-        <div className="lg:col-span-2 rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4">
-          <h3 className="text-sm font-semibold text-slate-100 mb-3">
-            {t("student.gradeChart", "Үлгерім динамикасы (тоқсан бойынша)")}
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={gradeHistory} margin={{ left: -20, right: 10 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="quarter" stroke="#9ca3af" fontSize={12} />
-                <YAxis
-                  domain={[2, 5]}
-                  stroke="#9ca3af"
-                  fontSize={12}
-                  tickCount={7}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#020617",
-                    border: "1px solid #1f2937",
-                    borderRadius: "0.75rem",
-                    fontSize: "12px",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="grade"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={{ r: 4, strokeWidth: 2, stroke: "#a5b4fc" }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          {/* Психологические сигналы */}
+          <div className="rounded-2xl bg-slate-950/70 border border-rose-500/40 p-4 md:p-5">
+            <h3 className="text-sm font-semibold text-rose-100 mb-2">
+              Психологиялық сигналдар (тек завуч пен психолог үшін)
+            </h3>
+            <ul className="text-xs text-rose-50 space-y-1.5 leading-relaxed">
+              {riskData.psychSignals.map((s, idx) => (
+                <li key={idx}>• {s}</li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-rose-200/70 mt-2">
+              Ескерту: бұл ақпарат болашақта рөлдік қолжетімділік арқылы ғана
+              көрінеді (завуч / психолог).
+            </p>
+          </div>
+
+          {/* График пропусков */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5">
+            <h3 className="text-sm font-semibold text-slate-100 mb-3">
+              {t(
+                "student.absencesChart",
+                "Қатыспау динамикасы (айлар бойынша)"
+              )}
+            </h3>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={absencesHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+                  <YAxis stroke="#9ca3af" fontSize={12} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#020617",
+                      border: "1px solid #1f2937",
+                      borderRadius: "0.75rem",
+                      fontSize: "12px",
+                    }}
+                  />
+                  <Bar dataKey="abs" name="Барлығы" fill="#38bdf8" />
+                  <Bar dataKey="unexcused" name="Себепсіз" fill="#f97373" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Нижний блок: график пропусков */}
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4">
-        <h3 className="text-sm font-semibold text-slate-100 mb-3">
-          {t("student.absencesChart", "Қатыспау динамикасы (айлар бойынша)")}
-        </h3>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={absencesHistory}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-              <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#020617",
-                  border: "1px solid #1f2937",
-                  borderRadius: "0.75rem",
-                  fontSize: "12px",
-                }}
-              />
-              <Bar dataKey="abs" name="Барлығы" fill="#38bdf8" />
-              <Bar dataKey="unexcused" name="Себепсіз" fill="#f97373" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      {/* Рекомендации по ролям – во всю ширину, ниже основной сетки */}
+      {riskData.roleRecs && (
+        <RoleRecommendationsSection
+          roleRecs={riskData.roleRecs}
+          userRole={userRole}
+        />
+      )}
     </div>
+  );
+};
+
+/* ---------- Блок рекомендаций по ролям с фильтрацией по userRole ---------- */
+
+type RoleKey = "teacher" | "deputy" | "parent" | "psychologist";
+
+const userRoleLabel = (role?: UserRole): string => {
+  switch (role) {
+    case "teacher":
+      return "Мұғалім";
+    case "psychologist":
+      return "Психолог";
+    case "parent":
+      return "Ата-ана";
+    case "admin":
+      return "Админ";
+    case "deputy":
+    default:
+      return "Завуч";
+  }
+};
+
+const RoleRecommendationsSection: React.FC<{
+  roleRecs:
+    | NonNullable<ReturnType<typeof getRoleRecommendations>>
+    | AIRiskAnalysis["roleRecs"];
+  userRole?: UserRole;
+}> = ({ roleRecs, userRole }) => {
+  // Приводим к единому виду (на случай rule-based или AI)
+  const normalized = roleRecs as any;
+
+  const visibleRoles: RoleKey[] = (() => {
+    switch (userRole) {
+      case "teacher":
+        return ["teacher"];
+      case "psychologist":
+        // психолог видит советы себе и родителям
+        return ["psychologist", "parent"];
+      case "parent":
+        return ["parent"];
+      case "admin":
+      case "deputy":
+      default:
+        // завуч / админ видит все
+        return ["teacher", "deputy", "parent", "psychologist"];
+    }
+  })();
+
+  const config: { key: RoleKey; label: string; accent: string; bg: string }[] =
+    [
+      {
+        key: "teacher",
+        label: "Мұғалімге",
+        accent: "text-indigo-300",
+        bg: "bg-slate-900/80",
+      },
+      {
+        key: "deputy",
+        label: "Завучқа",
+        accent: "text-sky-300",
+        bg: "bg-slate-900/80",
+      },
+      {
+        key: "parent",
+        label: "Ата-анаға",
+        accent: "text-emerald-300",
+        bg: "bg-slate-900/80",
+      },
+      {
+        key: "psychologist",
+        label: "Психологқа",
+        accent: "text-rose-300",
+        bg: "bg-slate-900/80",
+      },
+    ];
+
+  const hasAnyVisible = visibleRoles.some((key) => normalized[key]?.length > 0);
+
+  if (!hasAnyVisible) return null;
+
+  return (
+    <section className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-4 lg:p-5 space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">
+            Ұсыныстар по ролям
+          </h3>
+          <p className="text-[11px] text-slate-400">
+            Блок автоматически фильтруется под роль вошедшего пользователя.
+          </p>
+        </div>
+        <span className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900/80 border border-slate-700/70 text-slate-300">
+          Роль:{" "}
+          <span className="font-semibold text-slate-100">
+            {userRoleLabel(userRole)}
+          </span>
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {config.map(({ key, label, accent, bg }) => {
+          if (!visibleRoles.includes(key)) return null;
+          const items: string[] = normalized[key] ?? [];
+          if (!items.length) return null;
+
+          return (
+            <div
+              key={key}
+              className={`rounded-2xl border border-slate-800/80 ${bg} p-3`}
+            >
+              <p className={`text-xs font-semibold mb-2 ${accent}`}>{label}</p>
+              <ul className="space-y-1.5 text-[11px] text-slate-100/90">
+                {items.map((text, idx) => (
+                  <li key={idx} className="flex gap-2">
+                    <span className="mt-[6px] h-1.5 w-1.5 rounded-full bg-slate-300/80 shrink-0" />
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 };
