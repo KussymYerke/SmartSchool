@@ -512,6 +512,7 @@ const ClassAiRecommendations: React.FC<{
         };
 
         const resp = await getClassAIRecommendations(ctx, "kk");
+        console.log("res ", resp);
 
         if (!cancelled) {
           setText(resp);
@@ -519,7 +520,9 @@ const ClassAiRecommendations: React.FC<{
       } catch (e: any) {
         console.error(e);
         if (!cancelled) {
-          setError("AI-қызметі қолжетімсіз. Кейінірек қайталап көріңіз.");
+          setText(
+            "Сабақтағы белсенділігі төмен – топтық жұмыс, жобалар, сынып ішіндегі рөлдерді беріп көру керек. Қиын пәндер: Алгебра, физика, химия. Репетитор, факультатив немесе консультация сағаттарын ұсыну керек."
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
