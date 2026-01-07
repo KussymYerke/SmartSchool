@@ -203,7 +203,11 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
       const tunedStudent = { ...s, gradeTrend: boostedTrend };
       const score = calculateRiskScore(tunedStudent as any);
       const level = getRiskLevel(score);
-      return { ...tunedStudent, riskScore: score, riskLevel: level as RiskLevel };
+      return {
+        ...tunedStudent,
+        riskScore: score,
+        riskLevel: level as RiskLevel,
+      };
     });
 
     const highRisk = withRisk.filter((s) => s.riskLevel === "high").length;
@@ -279,7 +283,6 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
   const ABSENCE_COLORS = ["#f97373", "#38bdf8"];
   const STUDENT_COLORS = ["#60a5fa", "#f472b6"];
   const GRADE_COLORS = ["#22c55e", "#1e293b"]; // Норм / қалған бөлігі
-  const RISK_COLORS = ["#ef4444", "#facc15", "#22c55e"]; // Жоғары / Орташа / Төмен
 
   // Данные для верхних кругов
   const studentsPieData = [
@@ -294,12 +297,6 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
   const gradePieData = [
     { name: "Орташа үлгерім", value: gradePercent },
     { name: "Қалған бөлігі", value: 100 - gradePercent },
-  ];
-
-  const riskPieData = [
-    { name: "Жоғары", value: stats.highRisk },
-    { name: "Орташа", value: stats.mediumRisk },
-    { name: "Төмен", value: stats.lowRisk },
   ];
 
   const absencesPieData = [
@@ -564,56 +561,60 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
         </div>
 
         {/* Қатысу (қысқаша) */}
-<div className="ui-panel p-4 flex items-center gap-4">
-  <div className="flex-1">
-    <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
-      Қатысу
-    </p>
-    <p className="text-2xl font-semibold">
+        <div className="ui-panel p-4 flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+              Қатысу
+            </p>
+            <p className="text-2xl font-semibold">
               {stats.totalAbsences}
               <span className="text-sm text-slate-400 ml-1">қатыспау</span>
             </p>
-    <p className="text-xs text-slate-400 mt-1">
-      Барлығы қатыспау:{" "}
-      <span className="text-slate-200 font-semibold">{stats.totalAbsences}</span>{" "}
-      · себепсіз:{" "}
-      <span className="text-red-200 font-semibold">{stats.totalUnexcused}</span>
-    </p>
-  </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Барлығы қатыспау:{" "}
+              <span className="text-slate-200 font-semibold">
+                {stats.totalAbsences}
+              </span>{" "}
+              · себепсіз:{" "}
+              <span className="text-red-200 font-semibold">
+                {stats.totalUnexcused}
+              </span>
+            </p>
+          </div>
 
-  <div className="w-24 h-24 overflow-visible">
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie
-          data={absencesPieData}
-          dataKey="value"
-          nameKey="name"
-          innerRadius={26}
-          outerRadius={38}
-          paddingAngle={2}
-        >
-          {absencesPieData.map((entry, index) => (
-            <Cell
-              key={`absence-top-cell-${entry.name}-${index}`}
-              fill={ABSENCE_COLORS[index % ABSENCE_COLORS.length]}
-            />
-          ))}
-        </Pie>
-        <Tooltip
-          wrapperStyle={{ zIndex: 9999 }}
-          contentStyle={{
-            backgroundColor: "#020617",
-            border: "1px solid #1f2937",
-            borderRadius: "0.75rem",
-            fontSize: 11,
-            color: "#e5e7eb",
-          }}
-          itemStyle={{ color: "#e5e7eb" }}
-        />
-      </PieChart>
-    </ResponsiveContainer>
-  </div>
-</div>
+          <div className="w-24 h-24 overflow-visible">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={absencesPieData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={26}
+                  outerRadius={38}
+                  paddingAngle={2}
+                >
+                  {absencesPieData.map((entry, index) => (
+                    <Cell
+                      key={`absence-top-cell-${entry.name}-${index}`}
+                      fill={ABSENCE_COLORS[index % ABSENCE_COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  wrapperStyle={{ zIndex: 9999 }}
+                  contentStyle={{
+                    backgroundColor: "#020617",
+                    border: "1px solid #1f2937",
+                    borderRadius: "0.75rem",
+                    fontSize: 11,
+                    color: "#e5e7eb",
+                  }}
+                  itemStyle={{ color: "#e5e7eb" }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </section>
 
       {/* СРЕДНЯЯ ЗОНА: КАРТА РИСКА */}
@@ -622,9 +623,14 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
         <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4">
           <div className="flex items-center justify-between mb-2 gap-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold">Жалпы тәуекел картасы (сыныптар)</h2>
+              <h2 className="text-sm font-semibold">
+                Жалпы тәуекел картасы (сыныптар)
+              </h2>
               <span className="text-[11px] text-slate-400">
-                · Барлығы: <span className="text-slate-200 font-semibold">{stats.riskStudentsCount}</span>
+                · Барлығы:{" "}
+                <span className="text-slate-200 font-semibold">
+                  {stats.riskStudentsCount}
+                </span>
               </span>
             </div>
             <span className="text-[11px] text-slate-400">
@@ -686,8 +692,6 @@ export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
             ))}
           </div>
         </div>
-
-        
       </section>
       {/*  */}
 
