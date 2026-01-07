@@ -20,7 +20,6 @@ export function buildStudentRiskPrompt(
 - Себепсіз келмеген күндер: ${student.unexcusedAbsences}
 
 Тәртіп және қатысу:
-- Үй тапсырмаларын орындау пайызы: ${student.homeworkCompletion}%
 - Мұғалім ескертулері: ${student.teacherAlerts}
 - Сабақтағы белсенділік: ${
     student.lowActivity ? "төмен" : "қалыпты немесе жоғары"

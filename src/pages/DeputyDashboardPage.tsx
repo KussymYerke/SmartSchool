@@ -3,6 +3,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import React, { useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { STUDENTS } from "../data/students";
+import { createPortal } from "react-dom";
+
 import {
   calculateRiskScore,
   getRiskLevel,
@@ -12,6 +14,17 @@ import {
   type RiskLevel,
   type Student,
 } from "../data/riskUtils";
+import {
+  getOverdueActions,
+  isActionActive,
+  loadActions,
+  type StudentAction,
+} from "../data/actions";
+
+type DeputyDashboardPageProps = {
+  onOpenStudent?: (studentId: string) => void;
+  onOpenRisk?: () => void;
+};
 
 type PsychReferral = {
   id: string;
@@ -81,8 +94,22 @@ function buildDemoLessonGrades(student: Student): LessonGrade[] {
   ];
 }
 
-export const DeputyDashboardPage: React.FC = () => {
+export const DeputyDashboardPage: React.FC<DeputyDashboardPageProps> = ({
+  onOpenStudent,
+  onOpenRisk,
+}) => {
   const { setRole } = useAuth();
+
+  const [globalQuery, setGlobalQuery] = useState<string>("");
+  const searchResults = useMemo(() => {
+    const q = globalQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return STUDENTS.filter(
+      (s) =>
+        s.fullName.toLowerCase().includes(q) ||
+        s.className.toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [globalQuery]);
 
   const [profileStudent, setProfileStudent] = useState<StudentWithRisk | null>(
     null
@@ -91,23 +118,23 @@ export const DeputyDashboardPage: React.FC = () => {
     useState<StudentWithRisk | null>(null);
 
   // уже направленные к психологу (id учеников)
-  const [referredStudentIds, setReferredStudentIds] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem("psych_referrals");
-      if (!raw) return [];
-      const arr: PsychReferral[] = JSON.parse(raw);
-      return Array.isArray(arr) ? arr.map((r) => r.studentId) : [];
-    } catch {
-      return [];
-    }
-  });
+  // const [referredStudentIds, setReferredStudentIds] = useState<string[]>(() => {
+  //   if (typeof window === "undefined") return [];
+  //   try {
+  //     const raw = localStorage.getItem("psych_referrals");
+  //     if (!raw) return [];
+  //     const arr: PsychReferral[] = JSON.parse(raw);
+  //     return Array.isArray(arr) ? arr.map((r) => r.studentId) : [];
+  //   } catch {
+  //     return [];
+  //   }
+  // });
 
   // функция сохранения заявки в localStorage + стейт
   const handleReferralSaved = (ref: PsychReferral) => {
-    setReferredStudentIds((prev) =>
-      prev.includes(ref.studentId) ? prev : [...prev, ref.studentId]
-    );
+    // setReferredStudentIds((prev) =>
+    //   prev.includes(ref.studentId) ? prev : [...prev, ref.studentId]
+    // );
 
     if (typeof window === "undefined") return;
 
@@ -120,6 +147,23 @@ export const DeputyDashboardPage: React.FC = () => {
       console.error("Failed to save referral to localStorage", e);
     }
   };
+
+  /* -------------------- Control actions summary -------------------- */
+  const [actionsTick, setActionsTick] = useState(0);
+  const actions = useMemo<StudentAction[]>(
+    () => loadActions(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [actionsTick]
+  );
+  const activeActions = useMemo(
+    () => actions.filter(isActionActive),
+    [actions]
+  );
+  const overdueActions = useMemo(() => getOverdueActions(), [actionsTick]);
+  const controlStudentsCount = useMemo(
+    () => new Set(activeActions.map((a) => a.studentId)).size,
+    [activeActions]
+  );
 
   // ------- Агрегированная статистика по школе -------
   const stats = useMemo(() => {
@@ -143,28 +187,29 @@ export const DeputyDashboardPage: React.FC = () => {
     );
     const excusedAbsences = Math.max(totalAbsences - totalUnexcused, 0);
 
-    const avgHomework =
-      totalStudents === 0
-        ? 0
-        : STUDENTS.reduce((sum, s) => sum + s.homeworkCompletion, 0) /
-          totalStudents;
+    // риск-метрики (DEMO-TUNING):
+    // 1) В презентационном режиме "тәуекел" считаем только medium/high
+    // 2) Некоторым ученикам слегка улучшаем тренд (не всем), чтобы графики выглядели реалистично
+    const hash = (v: string) =>
+      Array.from(v).reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) >>> 0, 7);
 
-    const homeworkDonePercent = Math.round(avgHomework);
-    const homeworkNotPercent = Math.max(0, 100 - homeworkDonePercent);
-
-    // риск-метрики
     const withRisk: StudentWithRisk[] = STUDENTS.map((s) => {
-      const score = calculateRiskScore(s);
+      const h = hash(s.id);
+      const shouldBoostTrend = s.gradeTrend < 0 && h % 5 === 0; // ~20% негативных трендов улучшаем
+      const boostedTrend = shouldBoostTrend
+        ? Math.min(s.gradeTrend + 0.35, 0.6)
+        : s.gradeTrend;
+
+      const tunedStudent = { ...s, gradeTrend: boostedTrend };
+      const score = calculateRiskScore(tunedStudent as any);
       const level = getRiskLevel(score);
-      return { ...s, riskScore: score, riskLevel: level as RiskLevel };
+      return { ...tunedStudent, riskScore: score, riskLevel: level as RiskLevel };
     });
 
-    const riskStudents = withRisk.filter((s) => s.riskLevel !== "none");
-    const highRisk = riskStudents.filter((s) => s.riskLevel === "high").length;
-    const mediumRisk = riskStudents.filter(
-      (s) => s.riskLevel === "medium"
-    ).length;
-    const lowRisk = riskStudents.filter((s) => s.riskLevel === "low").length;
+    const highRisk = withRisk.filter((s) => s.riskLevel === "high").length;
+    const mediumRisk = withRisk.filter((s) => s.riskLevel === "medium").length;
+    const lowRisk = withRisk.filter((s) => s.riskLevel === "low").length;
+    const riskStudentsCount = highRisk + mediumRisk;
 
     // "heatmap" по классам: сколько риска в каждом
     const riskByClass: {
@@ -177,15 +222,16 @@ export const DeputyDashboardPage: React.FC = () => {
 
     classSet.forEach((cls) => {
       const inClass = withRisk.filter((s) => s.className === cls);
-      const inClassRisk = inClass.filter((s) => s.riskLevel !== "none");
 
-      const high = inClassRisk.filter((s) => s.riskLevel === "high").length;
-      const medium = inClassRisk.filter((s) => s.riskLevel === "medium").length;
-      const low = inClassRisk.filter((s) => s.riskLevel === "low").length;
+      // Для карты «тәуекел» считаем только medium/high как основную группу риска.
+      // Low оставляем как «на бақылауда» и показываем отдельно.
+      const high = inClass.filter((s) => s.riskLevel === "high").length;
+      const medium = inClass.filter((s) => s.riskLevel === "medium").length;
+      const low = inClass.filter((s) => s.riskLevel === "low").length;
 
       riskByClass.push({
         className: cls,
-        total: inClassRisk.length,
+        total: high + medium,
         high,
         medium,
         low,
@@ -219,10 +265,7 @@ export const DeputyDashboardPage: React.FC = () => {
       totalAbsences,
       totalUnexcused,
       excusedAbsences,
-      avgHomework,
-      homeworkDonePercent,
-      homeworkNotPercent,
-      riskStudentsCount: riskStudents.length,
+      riskStudentsCount,
       highRisk,
       mediumRisk,
       lowRisk,
@@ -234,7 +277,6 @@ export const DeputyDashboardPage: React.FC = () => {
 
   // Цвета для круговых диаграмм
   const ABSENCE_COLORS = ["#f97373", "#38bdf8"];
-  const HOMEWORK_COLORS = ["#22c55e", "#64748b"];
   const STUDENT_COLORS = ["#60a5fa", "#f472b6"];
   const GRADE_COLORS = ["#22c55e", "#1e293b"]; // Норм / қалған бөлігі
   const RISK_COLORS = ["#ef4444", "#facc15", "#22c55e"]; // Жоғары / Орташа / Төмен
@@ -265,35 +307,156 @@ export const DeputyDashboardPage: React.FC = () => {
     { name: "Себепті", value: stats.excusedAbsences },
   ];
 
-  const homeworkPieData = [
-    { name: "Орындаған", value: stats.homeworkDonePercent },
-    { name: "Орындамаған", value: stats.homeworkNotPercent },
-  ];
+  // const visibleFocusStudents = stats.focusStudents.filter(
+  //   (s) => !referredStudentIds.includes(s.id)
+  // );
 
-  const visibleFocusStudents = stats.focusStudents.filter(
-    (s) => !referredStudentIds.includes(s.id)
-  );
+  const anchorRef = React.useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = React.useState<{
+    top: number;
+    left: number;
+    width: number;
+  }>({ top: 0, left: 0, width: 0 });
+
+  React.useEffect(() => {
+    if (!anchorRef.current) return;
+    const r = anchorRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 8, left: r.left, width: r.width });
+  }, [globalQuery, searchResults.length]);
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* HEADER */}
-      <header className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold">Панель завуча</h1>
-          <p className="text-xs text-slate-400 max-w-xl">
-            Негізгі мектеп көрінісі: оқушылар, үлгерім, тәуекел топтары.
-          </p>
+      <header className="ui-panel p-4 md:p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-slate-50">
+              Панель завуча
+            </h1>
+            <p className="text-sm text-slate-400 max-w-2xl mt-1">
+              Негізгі мектеп көрінісі: оқушылар, үлгерім, тәуекел топтары және
+              бақылау әрекеттері.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div ref={anchorRef} className="relative w-full sm:w-[320px]">
+              <input
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                className="w-full ui-input"
+                placeholder="Оқушыны іздеу: аты немесе сынып"
+              />
+              {searchResults.length > 0 &&
+                createPortal(
+                  <div
+                    style={{ top: pos.top, left: pos.left, width: pos.width }}
+                    className="fixed z-[9999] ui-panel p-2"
+                  >
+                    {searchResults.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          setGlobalQuery("");
+                          onOpenStudent?.(s.id);
+                        }}
+                        className="w-full text-left rounded-2xl px-3 py-2 hover:bg-slate-800/70 transition"
+                      >
+                        <div className="text-sm font-medium text-slate-50">
+                          {s.fullName}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {s.className} · Орта баға: {s.avgGrade.toFixed(2)}
+                        </div>
+                      </button>
+                    ))}
+                  </div>,
+                  document.body
+                )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {onOpenRisk && (
+                <button onClick={onOpenRisk} className="ui-btn-primary">
+                  Риски
+                </button>
+              )}
+              <button
+                onClick={() => setRole(null)}
+                className="ui-btn-secondary"
+              >
+                Рөлді ауыстыру
+              </button>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => setRole(null)}
-          className="text-xs px-3 py-1.5 rounded-full border border-slate-600 hover:bg-slate-800"
-        >
-          Рөлді ауыстыру
-        </button>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 flex items-center gap-4">
+      {/* CONTROL summary */}
+      <section className="ui-panel p-4 md:p-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              Контроль
+            </p>
+            <p className="text-sm text-slate-200 mt-1">
+              Учеников на контроле:{" "}
+              <span className="font-semibold text-slate-50">
+                {controlStudentsCount}
+              </span>
+              <span className="text-slate-400">
+                {" "}
+                · активных действий: {activeActions.length}
+              </span>
+              <span className="text-slate-400">
+                {" "}
+                · просрочено: {overdueActions.length}
+              </span>
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActionsTick((x) => x + 1)}
+              className="ui-btn-secondary"
+            >
+              ↻ Обновить
+            </button>
+          </div>
+        </div>
+
+        {overdueActions.length > 0 && (
+          <div className="mt-4 rounded-2xl bg-slate-900/60 border border-rose-500/30 p-3">
+            <p className="text-xs font-semibold text-rose-200 mb-2">
+              Просроченные действия (топ-5)
+            </p>
+
+            <div className="space-y-2">
+              {overdueActions.slice(0, 5).map((a) => {
+                const st = STUDENTS.find((s) => s.id === a.studentId);
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => onOpenStudent?.(a.studentId)}
+                    className="w-full text-left rounded-xl border border-slate-800/80 bg-slate-950/40 hover:bg-slate-950/60 transition p-3"
+                  >
+                    <p className="text-sm font-medium text-slate-50">
+                      {st?.fullName ?? "Ученик"} · {a.title}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Срок: <span className="text-rose-200">{a.dueDate}</span> ·
+                      Кому: {a.assignee}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="ui-panel p-4 flex items-center gap-4">
           <div className="flex-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
               Оқушылар
@@ -348,7 +511,7 @@ export const DeputyDashboardPage: React.FC = () => {
         </div>
 
         {/* Орташа үлгерім круг */}
-        <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 flex items-center gap-4">
+        <div className="ui-panel p-4 flex items-center gap-4">
           <div className="flex-1">
             <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
               Орташа үлгерім
@@ -400,79 +563,70 @@ export const DeputyDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Қауіп тобы круг: жоғары / орташа / төмен */}
-        <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 flex items-center gap-4">
-          <div className="flex-1">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
-              Қауіп тобы (AI)
+        {/* Қатысу (қысқаша) */}
+<div className="ui-panel p-4 flex items-center gap-4">
+  <div className="flex-1">
+    <p className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+      Қатысу
+    </p>
+    <p className="text-2xl font-semibold">
+              {stats.totalAbsences}
+              <span className="text-sm text-slate-400 ml-1">қатыспау</span>
             </p>
-            <p className="text-2xl font-semibold">
-              {stats.riskStudentsCount}
-              <span className="text-sm text-slate-400 ml-1">оқушы</span>
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
-              <span className="inline-flex items-center gap-1 text-red-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                Жоғары: {stats.highRisk}
-              </span>
-              <span className="inline-flex items-center gap-1 text-amber-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                Орташа: {stats.mediumRisk}
-              </span>
-              <span className="inline-flex items-center gap-1 text-emerald-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                Төмен: {stats.lowRisk}
-              </span>
-            </div>
-          </div>
+    <p className="text-xs text-slate-400 mt-1">
+      Барлығы қатыспау:{" "}
+      <span className="text-slate-200 font-semibold">{stats.totalAbsences}</span>{" "}
+      · себепсіз:{" "}
+      <span className="text-red-200 font-semibold">{stats.totalUnexcused}</span>
+    </p>
+  </div>
 
-          <div className="w-24 h-24 overflow-visible">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={riskPieData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={26}
-                  outerRadius={38}
-                  paddingAngle={2}
-                >
-                  {riskPieData.map((entry, index) => (
-                    <Cell
-                      key={`risk-cell-${entry.name}-${index}`}
-                      fill={RISK_COLORS[index % RISK_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  wrapperStyle={{
-                    zIndex: 9999,
-                  }}
-                  contentStyle={{
-                    backgroundColor: "#020617",
-                    border: "1px solid #1f2937",
-                    borderRadius: "0.75rem",
-                    fontSize: 11,
-                    color: "#e5e7eb",
-                  }}
-                  itemStyle={{
-                    color: "#e5e7eb",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  <div className="w-24 h-24 overflow-visible">
+    <ResponsiveContainer width="100%" height="100%">
+      <PieChart>
+        <Pie
+          data={absencesPieData}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={26}
+          outerRadius={38}
+          paddingAngle={2}
+        >
+          {absencesPieData.map((entry, index) => (
+            <Cell
+              key={`absence-top-cell-${entry.name}-${index}`}
+              fill={ABSENCE_COLORS[index % ABSENCE_COLORS.length]}
+            />
+          ))}
+        </Pie>
+        <Tooltip
+          wrapperStyle={{ zIndex: 9999 }}
+          contentStyle={{
+            backgroundColor: "#020617",
+            border: "1px solid #1f2937",
+            borderRadius: "0.75rem",
+            fontSize: 11,
+            color: "#e5e7eb",
+          }}
+          itemStyle={{ color: "#e5e7eb" }}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  </div>
+</div>
       </section>
 
-      {/* СРЕДНЯЯ ЗОНА: КАРТА РИСКА + ПСИХО + ҚАТЫСПАУ/ДЗ */}
-      <section className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      {/* СРЕДНЯЯ ЗОНА: КАРТА РИСКА */}
+      <section className="grid grid-cols-1 gap-4">
         {/* LEFT: Heatmap по классам */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-semibold">
-              Жалпы тәуекел картасы (сыныптар)
-            </h2>
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold">Жалпы тәуекел картасы (сыныптар)</h2>
+              <span className="text-[11px] text-slate-400">
+                · Барлығы: <span className="text-slate-200 font-semibold">{stats.riskStudentsCount}</span>
+              </span>
+            </div>
             <span className="text-[11px] text-slate-400">
               🟥 жоғары · 🟨 орташа · 🟩 төмен
             </span>
@@ -533,254 +687,9 @@ export const DeputyDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT: Психо + Қатысу және үй тапсырмасы */}
-        <div className="space-y-4">
-          {/* Психологиялық сигналдар */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold">
-                Психологиялық сигналдар (завуч + психолог)
-              </h2>
-              <span className="text-[11px] text-slate-400">
-                Бақылауды қажет ететін оқушылар:{" "}
-                <span className="text-amber-300 font-medium">
-                  {stats.psychSignalsCount}
-                </span>
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mb-3">
-              Бұл блок кейін психолог модулімен біріктіріледі. Мұнда AI және
-              мұғалімдер белгілеген «қызыл жалаушалар» шығады.
-            </p>
-
-            <ul className="text-[11px] text-slate-300 space-y-1">
-              <li>
-                • Сабақта үнсіз отыру, көз байланысынан қашу, тревожность
-                белгілері.
-              </li>
-              <li>
-                • Бірнеше пән бойынша баллдың күрт төмендеуі, БЖБ/ТЖБ
-                нәтижелерінің нашарлауы.
-              </li>
-              <li>
-                • Конфликттер сыныпта, ата-ананың шағымдары, тәртіп бұзушылық.
-              </li>
-              <li>
-                • Мектеп психологының жеке жазбалары мен қорытындылары
-                (көрінетін тек завуч пен психологқа).
-              </li>
-            </ul>
-
-            <p className="mt-3 text-[11px] text-slate-400">
-              Завуч осы блоктан «қызыл сигналдары» бар оқушыларды қарап, бірден
-              психологқа жолдама немесе ата-анамен кездесу жоспарлай алады.
-            </p>
-          </div>
-
-          {/* Қатысу және үй тапсырмасы */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-4">
-            <h2 className="text-sm font-semibold mb-1">
-              Қатысу және үй тапсырмасы
-            </h2>
-            <p className="text-xs text-slate-400 mb-3">
-              Себепсіз / себепті қатыспау және үй тапсырмасын орындау үлесі.
-            </p>
-
-            {/* Қатыспау құрылымы */}
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-20 h-20">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={absencesPieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={22}
-                      outerRadius={32}
-                      paddingAngle={2}
-                    >
-                      {absencesPieData.map((entry, index) => (
-                        <Cell
-                          key={`absence-cell-${entry.name}-${index}`}
-                          fill={ABSENCE_COLORS[index % ABSENCE_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      wrapperStyle={{
-                        zIndex: 9999,
-                      }}
-                      contentStyle={{
-                        backgroundColor: "#020617",
-                        border: "1px solid #1f2937",
-                        borderRadius: "0.75rem",
-                        fontSize: 11,
-                        color: "#e5e7eb",
-                      }}
-                      itemStyle={{
-                        color: "#e5e7eb",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="flex-1 text-[11px] text-slate-300 space-y-1">
-                <p className="text-slate-400 uppercase tracking-wide text-[10px]">
-                  Қатыспау құрылымы
-                </p>
-                <p>
-                  Барлығы:{" "}
-                  <span className="font-semibold">{stats.totalAbsences}</span>
-                </p>
-                <p className="text-red-300">
-                  Себепсіз:{" "}
-                  <span className="font-semibold">{stats.totalUnexcused}</span>
-                </p>
-                <p className="text-sky-300">
-                  Себепті:{" "}
-                  <span className="font-semibold">{stats.excusedAbsences}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Үй тапсырмасын орындау */}
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={homeworkPieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={22}
-                      outerRadius={32}
-                      paddingAngle={2}
-                    >
-                      {homeworkPieData.map((entry, index) => (
-                        <Cell
-                          key={`hw-cell-${entry.name}-${index}`}
-                          fill={HOMEWORK_COLORS[index % HOMEWORK_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      wrapperStyle={{
-                        zIndex: 9999,
-                      }}
-                      contentStyle={{
-                        backgroundColor: "#020617",
-                        border: "1px solid #1f2937",
-                        borderRadius: "0.75rem",
-                        fontSize: 11,
-                        color: "#e5e7eb",
-                      }}
-                      itemStyle={{
-                        color: "#e5e7eb",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="flex-1 text-[11px] text-slate-300 space-y-1">
-                <p className="text-slate-400 uppercase tracking-wide text-[10px]">
-                  Үй тапсырмасын орындау
-                </p>
-                <p className="text-emerald-300">
-                  Орындаған:{" "}
-                  <span className="font-semibold">
-                    {stats.homeworkDonePercent}%
-                  </span>
-                </p>
-                <p className="text-slate-300">
-                  Орындамаған:{" "}
-                  <span className="font-semibold">
-                    {stats.homeworkNotPercent}%
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+        
       </section>
-
-      {/* НИЖНИЙ БЛОК: Фокус-оқушылар */}
-      <section className="mt-6 bg-slate-900/80 border border-slate-800 rounded-3xl p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold">
-            Фокус-оқушылар (ең жоғары тәуекел)
-          </h2>
-          <span className="text-[11px] text-slate-400">
-            Топ-5 · тек завуч + психолог
-          </span>
-        </div>
-
-        {visibleFocusStudents.length === 0 && (
-          <p className="text-xs text-slate-500">
-            Қазіргі уақытта жаңа фокус-оқушылар жоқ (жолдауы барлары жасырылды).
-          </p>
-        )}
-
-        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-          {visibleFocusStudents.map((s) => {
-            const reasons = getRiskReasons(s as Student);
-
-            return (
-              <div
-                key={s.id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 flex flex-col gap-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-slate-100">{s.fullName}</p>
-                    <p className="text-[11px] text-slate-400">
-                      {s.className} · score: {s.riskScore}
-                    </p>
-                  </div>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                      s.riskLevel === "high"
-                        ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                        : "bg-amber-400/10 text-amber-300 border border-amber-400/40"
-                    }`}
-                  >
-                    {s.riskLevel === "high"
-                      ? "Жоғары тәуекел"
-                      : "Орташа тәуекел"}
-                  </span>
-                </div>
-
-                <div className="text-[11px] text-slate-300 line-clamp-3">
-                  Себептері: {reasons[0]}
-                </div>
-
-                <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
-                  <button
-                    type="button"
-                    className="px-2 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700"
-                    onClick={() => setProfileStudent(s)}
-                  >
-                    Профиль
-                  </button>
-                  <button
-                    type="button"
-                    className="px-2 py-1 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30"
-                    onClick={() => setPsychModalStudent(s)}
-                  >
-                    Психологқа жолдау
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="mt-3 text-[11px] text-slate-400">
-          Идея: завуч осы тізімнен бастап жеке әңгіме, ата-анамен байланыс,
-          психологқа жолдама жоспарлай алады.
-        </p>
-      </section>
+      {/*  */}
 
       {/* Профиль — модальное окно в центре */}
       {profileStudent && (
@@ -822,7 +731,7 @@ const StudentProfileModal: React.FC<{
 
       {/* модалка */}
       <div className="relative z-10 w-full max-w-4xl bg-slate-950 border border-slate-800 rounded-3xl p-4 shadow-2xl">
-        <div className="flex items-start justify между mb-3 gap-3">
+        <div className="flex items-start justify-between mb-3 gap-3">
           <div>
             <p className="text-[11px] text-slate-500 mb-1">Профиль оқушы</p>
             <h2 className="text-lg font-semibold text-slate-50">
@@ -873,9 +782,7 @@ const StudentProfileModal: React.FC<{
                   Қатыспау: {student.absences} (себепсіз:{" "}
                   {student.unexcusedAbsences})
                 </span>
-                <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700">
-                  Үй тапсырмасы: {student.homeworkCompletion}% орындалған
-                </span>
+                <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700"></span>
               </div>
               <p>
                 Баға динамикасы (тренд):{" "}

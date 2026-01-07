@@ -38,7 +38,6 @@ export async function getStudentAIRecommendations(
 Барлық келмеген күндер: ${student.absences}.
 Себепсіз келмеген: ${student.unexcusedAbsences}.
 
-Үй тапсырмаларын орындау: ${student.homeworkCompletion}%.
 Мұғалім ескертулері: ${student.teacherAlerts}.
 Сабақтағы белсенділік: ${
     student.lowActivity ? "төмен" : "қалыпты немесе жоғары"

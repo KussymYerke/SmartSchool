@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# School Admin Dashboard (Prototype)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Интерактивный прототип админ-панели школы для завуча/администрации: обзор метрик, риск-группы, профиль ученика, контроль действий и направление к психологу.
 
-Currently, two official plugins are available:
+## Быстрый старт
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1) Node.js
 
-## React Compiler
+Vite 7 **не поддерживает Node 21.x**.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Поддерживаемые версии:
+- **Node 22.12+ (рекомендуется)**
+- Node 20.19+
 
-## Expanding the ESLint configuration
+В репозитории есть `.nvmrc` (22.12.0) и проверка версии (`scripts/check-node.mjs`).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Если используете nvm:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+nvm install 22.12.0
+nvm use 22.12.0
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2) Запуск
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm i
+npm run dev
 ```
+
+## UX-логика (как это работает)
+
+### 1) Дашборд завуча
+- Сводные показатели (ученики, средний балл, риск-группа)
+- Быстрый поиск ученика (по имени / классу)
+- Блок **«Контроль»**: сколько учеников на контроле, сколько активных/просроченных действий
+- Фокус-список учеников: кого стоит проверить в первую очередь
+
+### 2) Риски
+- Фильтры по классу и уровню риска
+- Сортировка (по риску / пропускам / среднему баллу)
+- Быстрый переход в профиль ученика
+
+### 3) Профиль ученика
+- Вкладки: **Обзор / AI / Контроль**
+- **Обзор**: ключевые метрики + динамика
+- **AI / Психология**: причины риска, рекомендации по ролям (завуч/классрук/учитель/родитель/психолог)
+- **Контроль**: действия (статусы, сроки, ответственность). Считается «на контроле», если есть «Новая» или «В работе».
+
+### 4) Направление к психологу
+- Завуч может открыть модальное окно и отправить краткое направление
+- Прототип сохраняет направления в `localStorage`
+
+## Примечания
+- Это прототип: данные моковые и хранятся локально.
+- Логика действий/контроля и UI-паттерны уже готовы для подключения к API.

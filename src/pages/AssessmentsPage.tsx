@@ -1,11 +1,44 @@
 // src/pages/AssessmentsPage.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/i18n";
 
+type QuarterKey = "Q1" | "Q2";
+const QUARTERS: { key: QuarterKey; label: string }[] = [
+  { key: "Q1", label: "1 тоқсан / 1 четверть" },
+  { key: "Q2", label: "2 тоқсан / 2 четверть" },
+  // { key: "Q3", label: "3 тоқсан / 3 четверть" },
+  // { key: "Q4", label: "4 тоқсан / 4 четверть" },
+];
+
+type AssessmentSubject = {
+  code: string;
+  title: string;
+  hasSOCH: boolean;
+};
+
+// ✅ ЕДИНЫЕ ПРЕДМЕТЫ ДЛЯ ВСЕХ КЛАССОВ
+// ✅ В этих предметах есть и СОР и СОЧ
+const ASSESSMENT_SUBJECTS: AssessmentSubject[] = [
+  { code: "kz_lang", title: "Казахский язык", hasSOCH: true },
+  { code: "kz_lit", title: "Казахский адебиет", hasSOCH: true },
+  { code: "physics", title: "Физика", hasSOCH: true },
+  { code: "chem", title: "Химия", hasSOCH: true },
+  { code: "bio", title: "Биология", hasSOCH: true },
+  { code: "eng", title: "Английский язык", hasSOCH: true },
+  { code: "ru", title: "Русский язык", hasSOCH: true },
+  { code: "algebra", title: "Алгебра", hasSOCH: true },
+  { code: "history", title: "Казахстан тарих", hasSOCH: true },
+
+  // ✅ Остальные предметы — только СОР
+  { code: "geo", title: "География", hasSOCH: false },
+  { code: "cs", title: "Информатика", hasSOCH: false },
+];
+
 type SubjectAssessStats = {
-  subject: string;
+  subjectCode: string;
+  subjectTitle: string;
   sorAvg: number; // БЖБ / СОР
-  sochAvg: number; // ТЖБ / СОЧ
+  sochAvg: number | null; // ТЖБ / СОЧ (null если нет)
   lowShare: number; // % работ на "2" и "3"
 };
 
@@ -13,179 +46,9 @@ type ClassAssessStats = {
   className: string;
   sorAvg: number;
   sochAvg: number;
-  lowShare: number; // % слабых работ
-  highShare: number; // % "4-5"
-  worstSubject: string; // предмет риска
-};
-
-// 🔢 Демоданные по школе (агрегировано)
-const SCHOOL_SUBJECTS_STATS: SubjectAssessStats[] = [
-  { subject: "Математика", sorAvg: 3.4, sochAvg: 3.2, lowShare: 32 },
-  { subject: "Қазақ тілі / Рус. яз.", sorAvg: 3.8, sochAvg: 3.6, lowShare: 18 },
-  { subject: "Ағылшын тілі", sorAvg: 3.7, sochAvg: 3.4, lowShare: 22 },
-  { subject: "Информатика", sorAvg: 4.2, sochAvg: 4.0, lowShare: 9 },
-  { subject: "Физика", sorAvg: 3.3, sochAvg: 3.1, lowShare: 35 },
-  { subject: "Химия", sorAvg: 3.5, sochAvg: 3.2, lowShare: 29 },
-];
-
-// 🔢 Демоданные по классам (общие)
-const CLASS_ASSESS_STATS: ClassAssessStats[] = [
-  {
-    className: "7A",
-    sorAvg: 3.9,
-    sochAvg: 3.7,
-    lowShare: 15,
-    highShare: 55,
-    worstSubject: "Математика",
-  },
-  {
-    className: "8A",
-    sorAvg: 3.6,
-    sochAvg: 3.3,
-    lowShare: 26,
-    highShare: 40,
-    worstSubject: "Физика",
-  },
-  {
-    className: "8B",
-    sorAvg: 3.4,
-    sochAvg: 3.1,
-    lowShare: 32,
-    highShare: 35,
-    worstSubject: "Математика",
-  },
-  {
-    className: "9A",
-    sorAvg: 3.8,
-    sochAvg: 3.5,
-    lowShare: 21,
-    highShare: 48,
-    worstSubject: "Қазақ тілі / Рус. яз.",
-  },
-  {
-    className: "9B",
-    sorAvg: 3.5,
-    sochAvg: 3.2,
-    lowShare: 28,
-    highShare: 39,
-    worstSubject: "Физика",
-  },
-  {
-    className: "10A",
-    sorAvg: 3.7,
-    sochAvg: 3.4,
-    lowShare: 24,
-    highShare: 43,
-    worstSubject: "Физика",
-  },
-  {
-    className: "10B",
-    sorAvg: 3.6,
-    sochAvg: 3.3,
-    lowShare: 27,
-    highShare: 38,
-    worstSubject: "Химия",
-  },
-  {
-    className: "11A",
-    sorAvg: 4.0,
-    sochAvg: 3.8,
-    lowShare: 14,
-    highShare: 60,
-    worstSubject: "Ағылшын тілі",
-  },
-  {
-    className: "11B",
-    sorAvg: 3.9,
-    sochAvg: 3.7,
-    lowShare: 17,
-    highShare: 52,
-    worstSubject: "Математика",
-  },
-];
-
-// 🔢 Детализация по предметам для КАЖДОГО класса
-const CLASS_SUBJECT_DETAILS: Record<string, SubjectAssessStats[]> = {
-  "7A": [
-    { subject: "Математика", sorAvg: 3.6, sochAvg: 3.4, lowShare: 22 },
-    { subject: "Қазақ тілі", sorAvg: 4.1, sochAvg: 3.9, lowShare: 10 },
-    { subject: "Русский язык", sorAvg: 3.9, sochAvg: 3.8, lowShare: 12 },
-    { subject: "Ағылшын тілі", sorAvg: 3.8, sochAvg: 3.7, lowShare: 15 },
-    { subject: "Информатика", sorAvg: 4.4, sochAvg: 4.2, lowShare: 5 },
-  ],
-  "8A": [
-    { subject: "Математика", sorAvg: 3.4, sochAvg: 3.2, lowShare: 30 },
-    { subject: "Физика", sorAvg: 3.2, sochAvg: 3.0, lowShare: 35 },
-    { subject: "Қазақ тілі", sorAvg: 3.9, sochAvg: 3.6, lowShare: 18 },
-    { subject: "Ағылшын тілі", sorAvg: 3.7, sochAvg: 3.4, lowShare: 22 },
-  ],
-  "8B": [
-    { subject: "Математика", sorAvg: 3.2, sochAvg: 3.0, lowShare: 36 },
-    { subject: "Физика", sorAvg: 3.1, sochAvg: 2.9, lowShare: 38 },
-    { subject: "Қазақ тілі", sorAvg: 3.7, sochAvg: 3.5, lowShare: 20 },
-    { subject: "Ағылшын тілі", sorAvg: 3.5, sochAvg: 3.2, lowShare: 26 },
-  ],
-  "9A": [
-    { subject: "Математика", sorAvg: 3.5, sochAvg: 3.3, lowShare: 27 },
-    {
-      subject: "Қазақ тілі / Рус. яз.",
-      sorAvg: 3.7,
-      sochAvg: 3.4,
-      lowShare: 24,
-    },
-    { subject: "Физика", sorAvg: 3.4, sochAvg: 3.1, lowShare: 30 },
-    { subject: "Информатика", sorAvg: 4.3, sochAvg: 4.1, lowShare: 7 },
-  ],
-  "9B": [
-    { subject: "Математика", sorAvg: 3.3, sochAvg: 3.1, lowShare: 33 },
-    { subject: "Физика", sorAvg: 3.1, sochAvg: 2.9, lowShare: 37 },
-    {
-      subject: "Қазақ тілі / Рус. яз.",
-      sorAvg: 3.6,
-      sochAvg: 3.3,
-      lowShare: 25,
-    },
-    { subject: "Ағылшын тілі", sorAvg: 3.5, sochAvg: 3.2, lowShare: 28 },
-  ],
-  "10A": [
-    { subject: "Математика", sorAvg: 3.6, sochAvg: 3.4, lowShare: 28 },
-    { subject: "Физика", sorAvg: 3.3, sochAvg: 3.1, lowShare: 32 },
-    { subject: "Химия", sorAvg: 3.5, sochAvg: 3.2, lowShare: 29 },
-    { subject: "Информатика", sorAvg: 4.1, sochAvg: 3.9, lowShare: 10 },
-  ],
-  "10B": [
-    { subject: "Математика", sorAvg: 3.4, sochAvg: 3.2, lowShare: 31 },
-    { subject: "Физика", sorAvg: 3.2, sochAvg: 3.0, lowShare: 34 },
-    { subject: "Химия", sorAvg: 3.3, sochAvg: 3.1, lowShare: 36 },
-    {
-      subject: "Қазақ тілі / Рус. яз.",
-      sorAvg: 3.8,
-      sochAvg: 3.5,
-      lowShare: 22,
-    },
-  ],
-  "11A": [
-    { subject: "Математика", sorAvg: 4.0, sochAvg: 3.8, lowShare: 14 },
-    {
-      subject: "Қазақ тілі / Рус. яз.",
-      sorAvg: 4.1,
-      sochAvg: 3.9,
-      lowShare: 12,
-    },
-    { subject: "Ағылшын тілі", sorAvg: 3.9, sochAvg: 3.7, lowShare: 18 },
-    { subject: "Информатика", sorAvg: 4.5, sochAvg: 4.3, lowShare: 4 },
-  ],
-  "11B": [
-    { subject: "Математика", sorAvg: 3.8, sochAvg: 3.6, lowShare: 19 },
-    {
-      subject: "Қазақ тілі / Рус. яз.",
-      sorAvg: 3.9,
-      sochAvg: 3.7,
-      lowShare: 17,
-    },
-    { subject: "Физика", sorAvg: 3.5, sochAvg: 3.3, lowShare: 26 },
-    { subject: "Ағылшын тілі", sorAvg: 3.7, sochAvg: 3.5, lowShare: 21 },
-  ],
+  lowShare: number;
+  highShare: number;
+  worstSubjectTitle: string;
 };
 
 type GradeFilter = "all" | "7" | "8" | "9" | "10" | "11";
@@ -209,6 +72,172 @@ const getGradeFromClassName = (name: string): GradeFilter => {
   return "all";
 };
 
+// ---------------- DEMO: базовые данные по классам ----------------
+const CLASS_ASSESS_STATS_BASE: ClassAssessStats[] = [
+  {
+    className: "7A",
+    sorAvg: 3.9,
+    sochAvg: 3.7,
+    lowShare: 15,
+    highShare: 55,
+    worstSubjectTitle: "Алгебра",
+  },
+  {
+    className: "8A",
+    sorAvg: 3.6,
+    sochAvg: 3.3,
+    lowShare: 26,
+    highShare: 40,
+    worstSubjectTitle: "Физика",
+  },
+  {
+    className: "8B",
+    sorAvg: 3.4,
+    sochAvg: 3.1,
+    lowShare: 32,
+    highShare: 35,
+    worstSubjectTitle: "Алгебра",
+  },
+  {
+    className: "9A",
+    sorAvg: 3.8,
+    sochAvg: 3.5,
+    lowShare: 21,
+    highShare: 48,
+    worstSubjectTitle: "Русский язык",
+  },
+  {
+    className: "9B",
+    sorAvg: 3.5,
+    sochAvg: 3.2,
+    lowShare: 28,
+    highShare: 39,
+    worstSubjectTitle: "Физика",
+  },
+  {
+    className: "10A",
+    sorAvg: 3.7,
+    sochAvg: 3.4,
+    lowShare: 24,
+    highShare: 43,
+    worstSubjectTitle: "Физика",
+  },
+  {
+    className: "10B",
+    sorAvg: 3.6,
+    sochAvg: 3.3,
+    lowShare: 27,
+    highShare: 38,
+    worstSubjectTitle: "Химия",
+  },
+  {
+    className: "11A",
+    sorAvg: 4.0,
+    sochAvg: 3.8,
+    lowShare: 14,
+    highShare: 60,
+    worstSubjectTitle: "Английский язык",
+  },
+  {
+    className: "11B",
+    sorAvg: 3.9,
+    sochAvg: 3.7,
+    lowShare: 17,
+    highShare: 52,
+    worstSubjectTitle: "Алгебра",
+  },
+];
+
+// ---------------- helpers (quarter tweak) ----------------
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
+const quarterDelta = (q: QuarterKey) => {
+  // лёгкая вариативность по четвертям (demo)
+  switch (q) {
+    case "Q1":
+      return 0.0;
+    case "Q2":
+      return -0.1;
+    default:
+      return 0.0;
+  }
+};
+
+const quarterLowShareDelta = (q: QuarterKey) => {
+  switch (q) {
+    case "Q1":
+      return 0;
+    case "Q2":
+      return 2;
+    default:
+      return 0;
+  }
+};
+
+// Генерация предметной детализации на основе класса + четверти,
+// но со строгим правилом: у некоторых предметов нет СОЧ => sochAvg = null.
+const buildSubjectsForClass = (
+  cls: ClassAssessStats,
+  q: QuarterKey
+): SubjectAssessStats[] => {
+  const qd = quarterDelta(q);
+  const qLowD = quarterLowShareDelta(q);
+
+  // базовый уровень класса
+  const baseSor = cls.sorAvg + qd;
+  const baseSoch = cls.sochAvg + qd;
+
+  // небольшие “сдвиги” по предметам (детерминированно, без рандома)
+  const subjectOffsets: Record<string, number> = {
+    algebra: -0.2,
+    physics: -0.25,
+    chem: -0.15,
+    bio: -0.05,
+    eng: 0.05,
+    ru: 0.0,
+    kz_lang: 0.05,
+    kz_lit: 0.0,
+    history: -0.05,
+    cs: 0.2,
+    geo: 0.05,
+    pe: 0.25,
+    art: 0.15,
+  };
+
+  return ASSESSMENT_SUBJECTS.map((s) => {
+    const off = subjectOffsets[s.code] ?? 0;
+    const sorAvg = round1(clamp(baseSor + off, 2.6, 5.0));
+
+    const sochAvg = s.hasSOCH
+      ? round1(clamp(baseSoch + off * 0.8, 2.6, 5.0))
+      : null;
+
+    // lowShare: в “слабых” предметах выше процент
+    const lowBias = off < 0 ? Math.abs(off) * 40 : 0;
+    const lowShare = Math.round(clamp(cls.lowShare + qLowD + lowBias, 5, 60));
+
+    return {
+      subjectCode: s.code,
+      subjectTitle: s.title,
+      sorAvg,
+      sochAvg,
+      lowShare,
+    };
+  });
+};
+
+const computeWorstSubject = (rows: SubjectAssessStats[]) => {
+  if (!rows.length) return "";
+  // худший — где lowShare выше, при равенстве — ниже sorAvg
+  const sorted = [...rows].sort((a, b) => {
+    if (b.lowShare !== a.lowShare) return b.lowShare - a.lowShare;
+    return a.sorAvg - b.sorAvg;
+  });
+  return sorted[0]?.subjectTitle ?? "";
+};
+
 const RadialCircle: React.FC<{
   value: number;
   max?: number;
@@ -226,16 +255,14 @@ const RadialCircle: React.FC<{
   return (
     <div className={`flex flex-col items-center ${className ?? ""}`}>
       <svg width={size} height={size} className="overflow-visible">
-        {/* фон */}
         <circle
           cx={center}
           cy={center}
           r={radius}
-          stroke="rgba(148, 163, 184, 0.4)" // slate-400/40
+          stroke="rgba(148, 163, 184, 0.4)"
           strokeWidth={stroke}
           fill="none"
         />
-        {/* прогресс */}
         <circle
           cx={center}
           cy={center}
@@ -248,7 +275,6 @@ const RadialCircle: React.FC<{
           fill="none"
           transform={`rotate(-90 ${center} ${center})`}
         />
-        {/* значение */}
         <text
           x="50%"
           y="50%"
@@ -266,51 +292,154 @@ const RadialCircle: React.FC<{
 
 export const AssessmentsPage: React.FC = () => {
   const { t } = useI18n();
+
   const [gradeFilter, setGradeFilter] = useState<GradeFilter>("all");
   const [selectedClassName, setSelectedClassName] = useState<string | null>(
     null
   );
+  const [quarter, setQuarter] = useState<QuarterKey>("Q1");
 
   const filteredClasses = useMemo(() => {
-    const base =
-      gradeFilter === "all"
-        ? CLASS_ASSESS_STATS
-        : CLASS_ASSESS_STATS.filter(
-            (cls) => getGradeFromClassName(cls.className) === gradeFilter
-          );
-    // Если выбранный класс не входит в фильтр — сбрасываем
+    return gradeFilter === "all"
+      ? CLASS_ASSESS_STATS_BASE
+      : CLASS_ASSESS_STATS_BASE.filter(
+          (cls) => getGradeFromClassName(cls.className) === gradeFilter
+        );
+  }, [gradeFilter]);
+
+  // ✅ чтобы не было setState внутри useMemo — сбрасываем выбор через useEffect
+  useEffect(() => {
     if (
       selectedClassName &&
-      !base.some((cls) => cls.className === selectedClassName)
+      !filteredClasses.some((c) => c.className === selectedClassName)
     ) {
       setSelectedClassName(null);
     }
-    return base;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gradeFilter]);
+  }, [filteredClasses, selectedClassName]);
 
-  const schoolSorAvg = useMemo(() => {
-    if (!filteredClasses.length) return 0;
-    const sum = filteredClasses.reduce((acc, c) => acc + c.sorAvg, 0);
-    return Number((sum / filteredClasses.length).toFixed(2));
-  }, [filteredClasses]);
-
-  const schoolSochAvg = useMemo(() => {
-    if (!filteredClasses.length) return 0;
-    const sum = filteredClasses.reduce((acc, c) => acc + c.sochAvg, 0);
-    return Number((sum / filteredClasses.length).toFixed(2));
-  }, [filteredClasses]);
-
-  const schoolLowShare = useMemo(() => {
-    if (!filteredClasses.length) return 0;
-    const sum = filteredClasses.reduce((acc, c) => acc + c.lowShare, 0);
-    return Math.round(sum / filteredClasses.length);
-  }, [filteredClasses]);
-
-  const selectedClassSubjects: SubjectAssessStats[] = useMemo(() => {
-    if (!selectedClassName) return [];
-    return CLASS_SUBJECT_DETAILS[selectedClassName] ?? [];
+  const selectedClass = useMemo(() => {
+    if (!selectedClassName) return null;
+    return (
+      CLASS_ASSESS_STATS_BASE.find((c) => c.className === selectedClassName) ??
+      null
+    );
   }, [selectedClassName]);
+
+  // ✅ Верхние summary и график теперь зависят от выбранного класса:
+  // - если класс выбран -> показываем его данные
+  // - иначе -> показываем агрегат по фильтру (параллель/все)
+  const summarySorAvg = useMemo(() => {
+    if (selectedClass)
+      return round1(clamp(selectedClass.sorAvg + quarterDelta(quarter), 2, 5));
+    if (!filteredClasses.length) return 0;
+    const sum = filteredClasses.reduce(
+      (acc, c) => acc + (c.sorAvg + quarterDelta(quarter)),
+      0
+    );
+    return round1(sum / filteredClasses.length);
+  }, [filteredClasses, selectedClass, quarter]);
+
+  const summarySochAvg = useMemo(() => {
+    if (selectedClass)
+      return round1(clamp(selectedClass.sochAvg + quarterDelta(quarter), 2, 5));
+    if (!filteredClasses.length) return 0;
+    const sum = filteredClasses.reduce(
+      (acc, c) => acc + (c.sochAvg + quarterDelta(quarter)),
+      0
+    );
+    return round1(sum / filteredClasses.length);
+  }, [filteredClasses, selectedClass, quarter]);
+
+  const summaryLowShare = useMemo(() => {
+    const d = quarterLowShareDelta(quarter);
+    if (selectedClass)
+      return Math.round(clamp(selectedClass.lowShare + d, 0, 100));
+    if (!filteredClasses.length) return 0;
+    const sum = filteredClasses.reduce(
+      (acc, c) => acc + clamp(c.lowShare + d, 0, 100),
+      0
+    );
+    return Math.round(sum / filteredClasses.length);
+  }, [filteredClasses, selectedClass, quarter]);
+
+  // ✅ График предметов “сверху”:
+  // - если выбран класс -> предметы по классу (единый список предметов)
+  // - иначе -> агрегируем по фильтру (среднее по классам)
+  const topSubjectsData = useMemo((): SubjectAssessStats[] => {
+    if (selectedClass) {
+      return buildSubjectsForClass(selectedClass, quarter);
+    }
+
+    if (!filteredClasses.length) return [];
+
+    const perClass = filteredClasses.map((c) =>
+      buildSubjectsForClass(c, quarter)
+    );
+
+    // усредняем по предметам (subjectCode)
+    const map = new Map<
+      string,
+      {
+        sumSor: number;
+        sumSoch: number;
+        cntSoch: number;
+        sumLow: number;
+        cnt: number;
+        title: string;
+      }
+    >();
+
+    for (const rows of perClass) {
+      for (const r of rows) {
+        const prev = map.get(r.subjectCode) ?? {
+          sumSor: 0,
+          sumSoch: 0,
+          cntSoch: 0,
+          sumLow: 0,
+          cnt: 0,
+          title: r.subjectTitle,
+        };
+        prev.sumSor += r.sorAvg;
+        if (typeof r.sochAvg === "number") {
+          prev.sumSoch += r.sochAvg;
+          prev.cntSoch += 1;
+        }
+        prev.sumLow += r.lowShare;
+        prev.cnt += 1;
+        prev.title = r.subjectTitle;
+        map.set(r.subjectCode, prev);
+      }
+    }
+
+    return ASSESSMENT_SUBJECTS.map((s) => {
+      const v = map.get(s.code);
+      if (!v || v.cnt === 0) {
+        return {
+          subjectCode: s.code,
+          subjectTitle: s.title,
+          sorAvg: 0,
+          sochAvg: s.hasSOCH ? 0 : null,
+          lowShare: 0,
+        };
+      }
+      const sorAvg = round1(v.sumSor / v.cnt);
+      const sochAvg =
+        s.hasSOCH && v.cntSoch > 0 ? round1(v.sumSoch / v.cntSoch) : null;
+      const lowShare = Math.round(v.sumLow / v.cnt);
+      return {
+        subjectCode: s.code,
+        subjectTitle: s.title,
+        sorAvg,
+        sochAvg,
+        lowShare,
+      };
+    });
+  }, [selectedClass, filteredClasses, quarter]);
+
+  const worstSubjectTitle = useMemo(
+    () => computeWorstSubject(topSubjectsData),
+    [topSubjectsData]
+  );
 
   return (
     <div className="space-y-6">
@@ -320,73 +449,107 @@ export const AssessmentsPage: React.FC = () => {
           <h2 className="text-lg md:text-xl font-semibold mb-1 text-slate-50">
             {t("assessments.title", "БЖБ / ТЖБ · СОР / СОЧ")}
           </h2>
+
           <p className="text-sm text-slate-400">
-            {t(
-              "assessments.subtitle",
-              "Мектеп бойынша БЖБ/ТЖБ нәтижелері: орташа балл, параллельдер мен сыныптар кесіндісінде."
-            )}
+            {selectedClassName
+              ? `Сынып: ${selectedClassName} · ${
+                  QUARTERS.find((x) => x.key === quarter)?.label
+                }`
+              : `Параллель/мектеп: ${
+                  GRADE_FILTERS.find((x) => x.key === gradeFilter)?.label
+                } · ${QUARTERS.find((x) => x.key === quarter)?.label}`}
           </p>
         </div>
 
-        <div className="inline-flex flex-wrap gap-2 rounded-full bg-slate-900/70 border border-slate-800 px-2 py-1">
-          {GRADE_FILTERS.map((f) => {
-            const active = gradeFilter === f.key;
-            return (
-              <button
-                key={f.key}
-                onClick={() => setGradeFilter(f.key)}
-                className={`px-3 py-1.5 rounded-full text-xs md:text-sm transition whitespace-nowrap ${
-                  active
-                    ? "bg-primary-600 text-white shadow-soft"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        <div className="flex flex-col gap-2 items-start md:items-end">
+          {/* Quarter tabs */}
+          <div className="inline-flex flex-wrap gap-2 rounded-full bg-slate-900/70 border border-slate-800 px-2 py-1">
+            {QUARTERS.map((q) => {
+              const active = quarter === q.key;
+              return (
+                <button
+                  key={q.key}
+                  onClick={() => setQuarter(q.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs md:text-sm transition whitespace-nowrap ${
+                    active
+                      ? "bg-primary-600 text-white shadow-soft"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  {q.key}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Grade filters */}
+          <div className="inline-flex flex-wrap gap-2 rounded-full bg-slate-900/70 border border-slate-800 px-2 py-1">
+            {GRADE_FILTERS.map((f) => {
+              const active = gradeFilter === f.key;
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setGradeFilter(f.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs md:text-sm transition whitespace-nowrap ${
+                    active
+                      ? "bg-primary-600 text-white shadow-soft"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* Обзор по школе */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* summary cards */}
-        <div className="lg:col-span-1 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4">
+      {/* ✅ Теперь summary сверху над "Пәндер бойынша..." */}
+      <section className="bg-slate-900/80 border border-slate-800/70 rounded-3xl p-4 md:p-5 shadow-soft space-y-4">
+        {/* Summary row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <SummaryCard
             title="Орташа БЖБ / СОР"
-            value={schoolSorAvg}
+            value={summarySorAvg}
             subtitle="/ 5.0"
           />
           <SummaryCard
             title="Орташа ТЖБ / СОЧ"
-            value={schoolSochAvg}
+            value={summarySochAvg}
             subtitle="/ 5.0"
             variant="blue"
           />
           <SummaryCard
             title="Төмен нәтиже үлесі"
-            value={`${schoolLowShare}%`}
+            value={`${summaryLowShare}%`}
             subtitle="2–3 алған жұмыстар"
             variant="danger"
           />
         </div>
 
-        {/* bar chart by subjects */}
-        <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800/70 rounded-3xl p-4 md:p-5 shadow-soft flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-50 mb-1">
-              Пәндер бойынша орташа балл (мектеп бойынша)
-            </h3>
-            <p className="text-xs text-slate-400">
-              БЖБ/СОР және ТЖБ/СОЧ орташа балл. 5.0 – максимум. Бұл блок бүкіл
-              мектеп/таңдалған параллель бойынша көрінеді.
-            </p>
-          </div>
-          <SubjectsBarChart data={SCHOOL_SUBJECTS_STATS} />
+        <div className="text-[11px] text-slate-400 px-1">
+          Қиын пән (авто):{" "}
+          <span className="font-semibold text-amber-200">
+            {worstSubjectTitle || "—"}
+          </span>
         </div>
+
+        {/* Subjects block */}
+        <div className="pt-2">
+          <h3 className="text-sm font-semibold text-slate-50 mb-1">
+            Пәндер бойынша (таңдалған бөлім үшін)
+          </h3>
+          <p className="text-xs text-slate-400">
+            Егер сынып таңдалса — көрсеткіштер сол сынып бойынша. Әйтпесе —
+            таңдалған параллель/мектеп бойынша. Предметтер барлық сыныпта
+            бірдей. СОЧ тек кейбір пәндерде көрсетіледі.
+          </p>
+        </div>
+
+        <SubjectsBarChart data={topSubjectsData} />
       </section>
 
-      {/* По классам */}
+      {/* По классам (карточки) */}
       <section className="bg-slate-900/80 border border-slate-800/70 rounded-3xl p-4 md:p-5 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-slate-50">
@@ -403,6 +566,7 @@ export const AssessmentsPage: React.FC = () => {
               key={cls.className}
               data={cls}
               selected={selectedClassName === cls.className}
+              quarter={quarter}
               onClick={() =>
                 setSelectedClassName((prev) =>
                   prev === cls.className ? null : cls.className
@@ -412,36 +576,7 @@ export const AssessmentsPage: React.FC = () => {
           ))}
         </div>
 
-        {selectedClassName && (
-          <div className="mt-6 border-t border-slate-800 pt-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="text-sm font-semibold text-slate-50">
-                БЖБ / ТЖБ по предметам — {selectedClassName}
-              </h4>
-              <button
-                onClick={() => setSelectedClassName(null)}
-                className="text-[11px] text-slate-400 hover:text-slate-200"
-              >
-                Скрыть детали ✕
-              </button>
-            </div>
-
-            {selectedClassSubjects.length === 0 ? (
-              <p className="text-xs text-slate-500">
-                Для этого класса пока нет детализации по предметам. Позже сюда
-                можно подтянуть реальные данные из журнала.
-              </p>
-            ) : (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-3xl p-4">
-                {/* ВАЖНО: key */}
-                <SubjectsBarChart
-                  key={selectedClassName}
-                  data={selectedClassSubjects}
-                />
-              </div>
-            )}
-          </div>
-        )}
+        {/* ✅ Нижний блок детализации УБРАН */}
       </section>
     </div>
   );
@@ -494,26 +629,29 @@ const SubjectsBarChart: React.FC<{ data: SubjectAssessStats[] }> = ({
   if (!data.length) return null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    // ✅ По 3 предмета в ряд на lg+, по 2 на sm, по 1 на xs
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {data.map((row) => (
         <div
-          key={row.subject}
+          key={row.subjectCode}
           className="rounded-3xl bg-slate-950/60 border border-slate-800 p-4 flex gap-4 items-center hover:bg-slate-900 transition"
         >
-          {/* Две отдельные круговые диаграммы */}
           <div className="flex gap-3">
             <div className="text-sky-400">
               <RadialCircle value={row.sorAvg} label="БЖБ / СОР" />
             </div>
-            <div className="text-violet-400">
-              <RadialCircle value={row.sochAvg} label="ТЖБ / СОЧ" />
-            </div>
+
+            {/* ✅ СОЧ показываем только если есть */}
+            {typeof row.sochAvg === "number" && (
+              <div className="text-violet-400">
+                <RadialCircle value={row.sochAvg} label="ТЖБ / СОЧ" />
+              </div>
+            )}
           </div>
 
-          {/* Текстовая часть */}
           <div className="flex flex-col">
             <span className="text-sm font-semibold text-slate-100">
-              {row.subject}
+              {row.subjectTitle}
             </span>
 
             <span className="text-xs text-slate-400 mt-1">
@@ -523,12 +661,18 @@ const SubjectsBarChart: React.FC<{ data: SubjectAssessStats[] }> = ({
               </span>
             </span>
 
-            <span className="text-xs text-slate-400">
-              ТЖБ/СОЧ орташа балл:{" "}
-              <span className="text-violet-300 font-medium">
-                {row.sochAvg.toFixed(1)} / 5.0
+            {typeof row.sochAvg === "number" ? (
+              <span className="text-xs text-slate-400">
+                ТЖБ/СОЧ орташа балл:{" "}
+                <span className="text-violet-300 font-medium">
+                  {row.sochAvg.toFixed(1)} / 5.0
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="text-xs text-slate-500">
+                ТЖБ/СОЧ: жоқ (тек СОР)
+              </span>
+            )}
 
             <span className="text-xs text-amber-300 mt-2">
               🔥 Төмен нәтиже үлесі: {row.lowShare}%{" "}
@@ -538,8 +682,8 @@ const SubjectsBarChart: React.FC<{ data: SubjectAssessStats[] }> = ({
         </div>
       ))}
       <p className="text-[10px] text-slate-500 col-span-full mt-1">
-        Кеңес: ТЖБ/СОЧ БЖБ/СОР-ға қарағанда айқын төмен пәндер — қорытынды
-        бақылауға дайындықты терең талдауды қажет ететін бағыттар.
+        Кеңес: СОР төмен пәндер — күнделікті коррекция, ал СОЧ төмен пәндер —
+        тоқсандық қорытынды дайындықты күшейту.
       </p>
     </div>
   );
@@ -549,11 +693,17 @@ const SubjectsBarChart: React.FC<{ data: SubjectAssessStats[] }> = ({
 const ClassAssessCard: React.FC<{
   data: ClassAssessStats;
   selected: boolean;
+  quarter: QuarterKey;
   onClick: () => void;
-}> = ({ data, selected, onClick }) => {
-  const low = data.lowShare;
-  const high = data.highShare;
+}> = ({ data, selected, quarter, onClick }) => {
+  const d = quarterLowShareDelta(quarter);
+
+  const low = Math.round(clamp(data.lowShare + d, 0, 100));
+  const high = Math.round(clamp(data.highShare - d, 0, 100));
   const mid = Math.max(0, 100 - low - high);
+
+  const sor = round1(clamp(data.sorAvg + quarterDelta(quarter), 2, 5));
+  const soch = round1(clamp(data.sochAvg + quarterDelta(quarter), 2, 5));
 
   return (
     <button
@@ -570,15 +720,11 @@ const ClassAssessCard: React.FC<{
           </div>
           <div className="text-[11px] text-slate-500">
             Орташа БЖБ/СОР:{" "}
-            <span className="text-slate-100">
-              {data.sorAvg.toFixed(1)} / 5.0
-            </span>
+            <span className="text-slate-100">{sor.toFixed(1)} / 5.0</span>
           </div>
           <div className="text-[11px] text-slate-500">
             Орташа ТЖБ/СОЧ:{" "}
-            <span className="text-slate-100">
-              {data.sochAvg.toFixed(1)} / 5.0
-            </span>
+            <span className="text-slate-100">{soch.toFixed(1)} / 5.0</span>
           </div>
         </div>
         <span className="text-[11px] px-2 py-1 rounded-full bg-slate-800 text-slate-300">
@@ -586,14 +732,11 @@ const ClassAssessCard: React.FC<{
         </span>
       </div>
 
-      {/* stacked bar */}
-      {/* распределение результатов по уровням */}
       <div className="mt-2 space-y-1.5">
         <div className="flex justify-between text-[11px] text-slate-400">
           <span>Нәтижелер құрылымы</span>
         </div>
 
-        {/* 2–3 */}
         <div className="flex items-center gap-2 text-[10px]">
           <span className="w-8 text-red-200">2–3</span>
           <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -605,7 +748,6 @@ const ClassAssessCard: React.FC<{
           <span className="w-10 text-right text-slate-300">{low}%</span>
         </div>
 
-        {/* 3–4 */}
         <div className="flex items-center gap-2 text-[10px]">
           <span className="w-8 text-amber-200">3–4</span>
           <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -617,7 +759,6 @@ const ClassAssessCard: React.FC<{
           <span className="w-10 text-right text-slate-300">{mid}%</span>
         </div>
 
-        {/* 4–5 */}
         <div className="flex items-center gap-2 text-[10px]">
           <span className="w-8 text-emerald-200">4–5</span>
           <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
@@ -630,16 +771,16 @@ const ClassAssessCard: React.FC<{
         </div>
       </div>
 
-      {/* subject at risk + совет */}
       <div className="mt-2 text-[11px] text-slate-300">
         Қиын пән:{" "}
         <span className="font-semibold text-amber-200">
-          {data.worstSubject}
+          {data.worstSubjectTitle}
         </span>
       </div>
+
       <p className="text-[10px] text-slate-500 mt-1">
-        Кеңес: {data.worstSubject} пәні бойынша БЖБ/ТЖБ нәтижелерін талдап,
-        шағын топтармен мақсатты коррекциялық жұмыс ұйымдастыру.
+        Кеңес: {data.worstSubjectTitle} пәні бойынша осы тоқсанның СОР/СОЧ
+        нәтижелерін талдап, мақсатты коррекциялық жұмыс ұйымдастыру.
       </p>
     </button>
   );

@@ -239,7 +239,7 @@ export const PsychologistDashboardPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-50 p-4 md:p-6 space-y-6">
+    <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-semibold">
@@ -250,15 +250,12 @@ export const PsychologistDashboardPage: React.FC = () => {
             көрсетіледі.
           </p>
         </div>
-        <button
-          onClick={() => setRole(null)}
-          className="text-xs px-3 py-1.5 rounded-full border border-slate-600 hover:bg-slate-800"
-        >
+        <button onClick={() => setRole(null)} className="ui-btn-secondary rounded-full px-3 py-1.5 text-xs">
           Рөлді ауыстыру
         </button>
       </header>
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
+      <div className="ui-panel overflow-hidden">
         <div className="px-4 py-3 text-xs uppercase tracking-wide text-slate-400 bg-slate-900/80 border-b border-slate-800 grid grid-cols-12 gap-3">
           <div className="col-span-5">Оқушы</div>
           <div className="col-span-2 text-center">Сынып</div>

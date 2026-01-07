@@ -2,10 +2,178 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-950 text-slate-100;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    ui-sans-serif, sans-serif;
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply text-slate-100;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "SF Pro Text", "Inter", "Segoe UI", Roboto, Arial, sans-serif;
+    /* Solid base color; gradients are rendered on a fixed overlay to avoid scroll artifacts */
+    background-color: #050814;
+    position: relative;
+  }
+
+  /*
+    Background overlay:
+    - fixed to viewport (stable on scroll)
+    - sits behind everything
+    - avoids "banding / weird blocks" that can appear with backdrop-filter + gradients while scrolling
+  */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(1200px 800px at 10% 0%, rgba(79, 70, 229, 0.16), transparent 55%),
+      radial-gradient(900px 700px at 90% 10%, rgba(249, 115, 22, 0.10), transparent 50%),
+      radial-gradient(900px 700px at 50% 110%, rgba(34, 197, 94, 0.06), transparent 55%),
+      linear-gradient(180deg, #050814 0%, #070a12 40%, #050814 100%);
+  }
+
+  /* Ensure the React root always paints above the background overlay */
+  #root {
+    position: relative;
+    z-index: 0;
+    min-height: 100%;
+  }
+
+  /* Consistent focus */
+  :is(button, a, input, select, textarea):focus-visible {
+    @apply outline-none ring-2 ring-primary-500/40 ring-offset-2 ring-offset-slate-950;
+  }
+
+  /* Baseline controls (still overridable by utilities) */
+  :is(input, select, textarea) {
+    @apply rounded-2xl bg-slate-900/55 border border-slate-700/50 px-3 py-2 text-sm text-slate-100;
+  }
+
+  ::selection {
+    background: rgba(79, 70, 229, 0.35);
+  }
+
+  /* Thin scrollbar utility (used in several pages) */
+  .custom-scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+
+  .custom-scroll-thin::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .custom-scroll-thin::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 999px;
+    border: 2px solid rgba(2, 6, 23, 0.65);
+  }
+
+  .custom-scroll-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.35);
+  }
+
+  .custom-scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .ui-panel {
+    @apply rounded-3xl bg-slate-900/45 border border-slate-800/60 shadow-soft backdrop-blur-xl;
+  }
+
+  .ui-panel-hover {
+    @apply ui-panel transition hover:border-slate-700/70 hover:bg-slate-900/55;
+  }
+
+  .ui-chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs;
+  }
+
+  .ui-input {
+    @apply rounded-2xl bg-slate-900/55 border border-slate-700/50 px-3 py-2 text-sm text-slate-100;
+  }
+
+  .ui-select {
+    @apply ui-input pr-9;
+  }
+
+  .ui-textarea {
+    @apply ui-input min-h-[96px];
+  }
+
+  .ui-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-medium transition;
+  }
+
+  .ui-btn-primary {
+    @apply ui-btn bg-primary-600 text-white hover:bg-primary-500;
+  }
+
+  .ui-btn-secondary {
+    @apply ui-btn bg-slate-800/80 text-slate-100 border border-slate-700/60 hover:bg-slate-800;
+  }
+
+  .ui-btn-ghost {
+    @apply ui-btn text-slate-200 hover:bg-slate-800/70;
+  }
+
+  .ui-muted {
+    @apply text-slate-400;
+  }
+
+  .ui-kpi {
+    @apply ui-panel p-4 md:p-5;
+  }
+
+  .ui-kpi-label {
+    @apply text-[11px] uppercase tracking-wide text-slate-400;
+  }
+
+  .ui-kpi-value {
+    @apply mt-1 text-2xl font-semibold text-slate-50;
+  }
+
+  .ui-tabs {
+    @apply inline-flex items-center gap-1 rounded-full bg-slate-900/55 border border-slate-800/60 p-1;
+  }
+
+  .ui-tab {
+    @apply px-3 py-1.5 rounded-full text-xs font-medium transition;
+  }
+
+  .ui-tab-active {
+    @apply bg-primary-600 text-white;
+  }
+
+  .ui-tab-inactive {
+    @apply text-slate-300 hover:text-white hover:bg-slate-800/70;
+  }
+
+  .ui-table {
+    @apply w-full text-sm;
+  }
+
+  .ui-th {
+    @apply text-left text-xs uppercase tracking-wide text-slate-400 font-semibold py-3 px-4;
+  }
+
+  .ui-td {
+    @apply py-3 px-4 align-top;
+  }
+
+  .ui-divider {
+    @apply border-t border-slate-800/70;
+  }
 }
 
 @keyframes fade-in-up {

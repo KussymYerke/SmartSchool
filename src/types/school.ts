@@ -27,7 +27,10 @@ export type ClassName =
   | "11B";
 
 export type SubjectCode =
+  // legacy combined code kept for backward-compatibility with demo data
   | "kazakh"
+  | "kazakh_lang"
+  | "kazakh_lit"
   | "russian"
   | "english"
   | "math"

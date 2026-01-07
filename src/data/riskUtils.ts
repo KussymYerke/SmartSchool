@@ -102,7 +102,6 @@ export function getRoleRecommendations(student: Student): RoleRecommendations {
   }
   if (student.homeworkCompletion < 80) {
     recs.parent.push(
-      "Үй тапсырмасын орындау үшін тұрақты уақыт пен тыныш орын белгілеу."
     );
   }
 
@@ -196,31 +195,59 @@ export function calculateRiskScore(student: Student): number {
   const excused = Math.max(student.absences - student.unexcusedAbsences, 0);
   score += excused * 1.5;
 
-  // 3. Үй тапсырмасы
-  if (student.homeworkCompletion < 50) score += 25;
-  else if (student.homeworkCompletion < 70) score += 18;
-  else if (student.homeworkCompletion < 85) score += 8;
-  // 85–100 — норм, почти без штрафа
-
-  // 4. Мұғалімдердің ескертулері
+  // 3. Мұғалімдердің ескертулері
   score += student.teacherAlerts * 10;
 
-  // 5. Қиын пәндер саны
+  // 4. Қиын пәндер саны
   score += (student.subjectsAtRisk?.length ?? 0) * 5;
 
-  // 6. Сабақта төмен активтілік
+  // 5. Сабақта төмен активтілік
   if (student.lowActivity) score += 8;
 
   return score;
 }
 
 export function getRiskLevel(score: number): RiskLevel {
-  if (score >= 85) return "high"; // өте күрделі кейстер
-  if (score >= 45) return "medium"; // негізгі «сары» фокус-топ
-  if (score >= 25) return "low"; // жеңіл бақылау
+  if (score >= 70) return "high"; // өте күрделі кейстер
+  if (score >= 35) return "medium"; // негізгі «сары» фокус-топ
+  if (score >= 20) return "low"; // жеңіл бақылау
   return "none";
 }
 
 export function isAtRisk(level: RiskLevel): boolean {
   return level === "medium" || level === "high";
+}
+
+// -------- SUBJECT-FOCUSED RISK (DEMO/APPROX) --------
+// In the demo dataset we don't store per-subject grades.
+// We approximate “subject risk” using:
+//  - whether the subject code is listed in `student.subjectsAtRisk`
+//  - overall avgGrade / trend / absences / teacher alerts
+// This is good enough for UI prioritization until a real backend provides per-subject metrics.
+export function calculateSubjectRiskScore(
+  student: Student,
+  subject: { code: string }
+): number {
+  const atRisk = (student.subjectsAtRisk ?? []).includes(subject.code);
+  if (!atRisk) return 10; // default: low attention
+
+  let score = 0;
+
+  // Base from overall performance
+  if (student.avgGrade < 2.5) score += 65;
+  else if (student.avgGrade < 3.0) score += 55;
+  else if (student.avgGrade < 3.5) score += 45;
+  else if (student.avgGrade < 4.0) score += 30;
+  else score += 20;
+
+  // Trend penalties
+  if (student.gradeTrend < -0.5) score += 15;
+  else if (student.gradeTrend < -0.2) score += 8;
+
+  // Discipline / attendance signals often correlate with subject issues in the demo
+  if (student.unexcusedAbsences >= 3) score += 10;
+  score += Math.min(student.teacherAlerts * 5, 20);
+
+  // Keep in [0..100]
+  return Math.max(0, Math.min(100, score));
 }

@@ -10,7 +10,10 @@ import { getClassAIRecommendations } from "../services/ai";
 
 type ClassProfilePageProps = {
   className: string;
-  onBack: () => void;
+  onBack?: () => void;
+  showBack?: boolean;
+  /** Optional: open student profile */
+  onOpenStudent?: (id: string) => void;
 };
 
 type Totals = {
@@ -25,6 +28,8 @@ type Totals = {
 export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
   className,
   onBack,
+  showBack = true,
+  onOpenStudent,
 }) => {
   const students = useMemo(
     () => STUDENTS.filter((s) => s.className === className),
@@ -87,12 +92,15 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
+          {showBack && onBack && (
+
           <button
             onClick={onBack}
             className="mb-2 inline-flex items-center text-xs px-2.5 py-1.5 rounded-full border border-slate-700/80 text-slate-300 hover:bg-slate-800/70 transition"
           >
             ← Артқа / Назад
           </button>
+          )}
           <h2 className="text-xl md:text-2xl font-semibold tracking-tight text-slate-50">
             {className} · сынып профилі
           </h2>
@@ -236,11 +244,22 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
                 ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/40"
                 : "bg-slate-700/20 text-slate-300 border-slate-500/40";
 
+            const Row: React.ElementType = onOpenStudent ? "button" : "div";
+            const rowProps = onOpenStudent
+              ? {
+                  type: "button" as const,
+                  onClick: () => onOpenStudent(s.id),
+                  className:
+                    "w-full text-left px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-slate-900/60 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500/60",
+                }
+              : {
+                  className:
+                    "px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-slate-900/60 transition-colors",
+                };
+
             return (
-              <div
-                key={s.id}
-                className="px-4 py-4 grid grid-cols-1 md:grid-cols-12 gap-3 items-center hover:bg-slate-900/60 transition-colors"
-              >
+              <Row key={s.id} {...(rowProps as any)}>
+
                 <div className="md:col-span-4">
                   <p className="text-sm font-medium text-slate-50">
                     {s.fullName}
@@ -293,7 +312,7 @@ export const ClassProfilePage: React.FC<ClassProfilePageProps> = ({
                     </span>
                   </span>
                 </div>
-              </div>
+              </Row>
             );
           })}
         </div>

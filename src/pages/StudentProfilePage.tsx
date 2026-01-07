@@ -26,15 +26,29 @@ import {
   getStudentAIRiskAnalysis,
   type AIRiskAnalysis,
 } from "../services/ai";
+import {
+  actionStatusLabel,
+  actionTypeLabel,
+  createAction,
+  getActionsForStudent,
+  isActionActive,
+  updateAction,
+  type ActionType,
+  type StudentAction,
+} from "../data/actions";
+import type { UserRole as AppRole } from "../types/auth";
+import { VISIBLE_SUBJECTS, getSubjectByCode } from "../data/subjects";
+import { getSubjectGrade, getSubjectTrend } from "../utils/subjectGrades";
+import { useAuth } from "../context/AuthContext";
 
 type StudentProfilePageProps = {
   studentId: string;
   onBack: () => void;
   // роль можно подставить из auth-контекста
-  userRole?: UserRole;
+  userRole?: ViewRole;
 };
 
-type UserRole = "deputy" | "teacher" | "psychologist" | "parent" | "admin";
+type ViewRole = AppRole | "parent" | "admin";
 
 const riskColorClass: Record<RiskLevel, string> = {
   none: "bg-slate-500/10 text-slate-300 border border-slate-600/40",
@@ -56,8 +70,50 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
   userRole = "deputy", // по умолчанию завуч / админ
 }) => {
   const { t } = useI18n();
+  const auth = useAuth();
+  const [tab, setTab] = useState<"overview" | "ai" | "control">("overview");
 
   const student = STUDENTS.find((s) => s.id === studentId);
+
+  // ---------- Actions / Control ----------
+  const [actionsTick, setActionsTick] = useState(0);
+  const [actions, setActions] = useState<StudentAction[]>([]);
+
+  const [actionFormOpen, setActionFormOpen] = useState(false);
+  const [actionType, setActionType] = useState<ActionType>("PARENT_CONTACT");
+  const [actionAssignee, setActionAssignee] = useState<string>("Классрук");
+  const [actionDue, setActionDue] = useState<string>("");
+  const [actionNote, setActionNote] = useState<string>("");
+
+  useEffect(() => {
+    setActions(getActionsForStudent(studentId));
+  }, [studentId, actionsTick]);
+
+  const activeActions = useMemo(
+    () => actions.filter(isActionActive),
+    [actions]
+  );
+  const doneActions = useMemo(
+    () => actions.filter((a) => !isActionActive(a)),
+    [actions]
+  );
+
+  const submitAction = () => {
+    if (!student) return;
+    createAction({
+      studentId: student.id,
+      type: actionType,
+      assignee: actionAssignee,
+      dueDate: actionDue ? actionDue : null,
+      note: actionNote,
+    });
+    setActionFormOpen(false);
+    setActionType("PARENT_CONTACT");
+    setActionAssignee("Классрук");
+    setActionDue("");
+    setActionNote("");
+    setActionsTick((x) => x + 1);
+  };
 
   // ---------- RISK SCORE ----------
   const { riskScore, riskLevel } = useMemo(() => {
@@ -113,6 +169,38 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         : ruleBased.psychSignals,
     };
   }, [student, aiRisk, ruleBased]);
+
+  // ---------- Subject grades table (demo) ----------
+  const subjectTable = useMemo(() => {
+    if (!student)
+      return [] as Array<{
+        code: string;
+        name: string;
+        grade: number;
+        trend: number;
+      }>;
+
+    // Teachers see only their selected subject; class teachers/deputy see all.
+    let subjectCodes: string[] = [];
+    if (auth.role === "teacher" && auth.selectedSubject) {
+      subjectCodes = [auth.selectedSubject];
+    } else {
+      subjectCodes = VISIBLE_SUBJECTS.map((s) => String(s.code));
+    }
+
+    return subjectCodes
+      .map((code) => {
+        const subj = getSubjectByCode(code as any);
+        const name = subj?.nameRu ?? code;
+        return {
+          code,
+          name,
+          grade: getSubjectGrade(student as any, code as any),
+          trend: getSubjectTrend(student as any, code as any),
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }, [student, auth.role, auth.selectedSubject]);
 
   // ---------- Старые rule-based рекомендации как fallback для AI блока ----------
   const aiRecommendationsFallback = useMemo(() => {
@@ -230,18 +318,31 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
     };
   }, [student]);
 
-  // ---------- Синтетическая история оценок ----------
+  // ---------- Синтетическая история оценок (правдоподобная) ----------
   const gradeHistory = useMemo(() => {
     if (!student) return [];
-    const base = student.avgGrade;
-    const trend = student.gradeTrend;
 
-    const q1 = Math.min(5, Math.max(2, base - trend * 1.5));
-    const q2 = Math.min(5, Math.max(2, base - trend * 0.5));
+    // делаем детерминированные "четверти" чтобы не прыгало при перерендере
+    const seed = Array.from(String(student.id)).reduce(
+      (acc, ch) => acc + ch.charCodeAt(0),
+      0
+    );
+    const noise = (k: number) => {
+      const x = Math.sin((seed + k) * 999) * 10000;
+      return (x - Math.floor(x)) * 2 - 1; // -1..1
+    };
+
+    const base = student.avgGrade;
+    const t = Math.max(-1.2, Math.min(1.2, student.gradeTrend)); // -..+
+    // распределяем тренд на 4 четверти + небольшие колебания (как в реале)
+    const q1 = base - t * 0.9 + noise(1) * 0.15;
+    const q2 = base - t * 0.4 + noise(2) * 0.12;
+
+    const clampG = (v: number) => Math.max(2, Math.min(5, v));
 
     return [
-      { quarter: "Q1", grade: Number(q1.toFixed(1)) },
-      { quarter: "Q2", grade: Number(q2.toFixed(1)) },
+      { quarter: "Q1", grade: Number(clampG(q1).toFixed(1)) },
+      { quarter: "Q2", grade: Number(clampG(q2).toFixed(1)) },
     ];
   }, [student]);
 
@@ -357,124 +458,299 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
         )}
       </div>
 
-      {/* Основная сетка: 2 колонки, чтобы не было пустоты справа/слева */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-        {/* Левая колонка: инфо + график оценок */}
-        <div className="space-y-4">
-          {/* Основная информация */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5 shadow-soft">
-            <h3 className="text-sm font-semibold text-slate-100 mb-3">
-              {t("student.info", "Негізгі ақпарат")}
-            </h3>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.class", "Сынып")}
-                </dt>
-                <dd className="text-slate-100">{student.className}</dd>
+      {/* Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="ui-tabs">
+          <button
+            onClick={() => setTab("overview")}
+            className={`ui-tab ${
+              tab === "overview" ? "ui-tab-active" : "ui-tab-inactive"
+            }`}
+          >
+            Обзор
+          </button>
+          <button
+            onClick={() => setTab("ai")}
+            className={`ui-tab ${
+              tab === "ai" ? "ui-tab-active" : "ui-tab-inactive"
+            }`}
+          >
+            AI / Психология
+          </button>
+          <button
+            onClick={() => setTab("control")}
+            className={`ui-tab ${
+              tab === "control" ? "ui-tab-active" : "ui-tab-inactive"
+            }`}
+          >
+            Контроль
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400">
+          {tab === "overview" && "Ключевые метрики и динамика"}
+          {tab === "ai" && "AI-анализ и рекомендации по ролям"}
+          {tab === "control" && "Действия, сроки и статусы"}
+        </div>
+      </div>
+
+      {tab === "overview" && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <div className="space-y-4">
+            <div className="ui-panel p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-slate-100 mb-3">
+                {t("student.info", "Негізгі ақпарат")}
+              </h3>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">
+                    {t("student.class", "Сынып")}
+                  </dt>
+                  <dd className="text-slate-100">{student.className}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">
+                    {t("student.gender", "Жынысы")}
+                  </dt>
+                  <dd className="text-slate-100">
+                    {student.gender === "male" ? "Ұл бала" : "Қыз бала"}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">
+                    {t("student.absences", "Жалпы келмеген күн")}
+                  </dt>
+                  <dd className="text-slate-100">{student.absences}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">
+                    {t("student.unexcusedAbsences", "Себепсіз келмеген")}
+                  </dt>
+                  <dd className="text-rose-300">{student.unexcusedAbsences}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-400">
+                    {t("student.teacherAlerts", "Мұғалім ескертулері")}
+                  </dt>
+                  <dd className="text-slate-100">{student.teacherAlerts}</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div className="ui-panel p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-slate-100 mb-3">
+                {t("student.gradeChart", "Үлгерім динамикасы (тоқсан бойынша)")}
+              </h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={gradeHistory}
+                    margin={{ left: -20, right: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis dataKey="quarter" stroke="#9ca3af" fontSize={12} />
+                    <YAxis
+                      domain={[2, 5]}
+                      stroke="#9ca3af"
+                      fontSize={12}
+                      tickCount={7}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#020617",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="grade"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      dot={{ r: 4, strokeWidth: 2, stroke: "#a5b4fc" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.gender", "Жынысы")}
-                </dt>
-                <dd className="text-slate-100">
-                  {student.gender === "male" ? "Ұл бала" : "Қыз бала"}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.absences", "Жалпы келмеген күн")}
-                </dt>
-                <dd className="text-slate-100">{student.absences}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.unexcusedAbsences", "Себепсіз келмеген")}
-                </dt>
-                <dd className="text-red-300">{student.unexcusedAbsences}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.homework", "Үй тапсырмаларын орындау")}
-                </dt>
-                <dd className="text-slate-100">
-                  {student.homeworkCompletion}%
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-400">
-                  {t("student.teacherAlerts", "Мұғалім ескертулері")}
-                </dt>
-                <dd className="text-slate-100">{student.teacherAlerts}</dd>
-              </div>
-            </dl>
+            </div>
           </div>
 
-          {/* График успеваемости */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5">
-            <h3 className="text-sm font-semibold text-slate-100 mb-3">
-              {t("student.gradeChart", "Үлгерім динамикасы (тоқсан бойынша)")}
-            </h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={gradeHistory}
-                  margin={{ left: -20, right: 10 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="quarter" stroke="#9ca3af" fontSize={12} />
-                  <YAxis
-                    domain={[2, 5]}
-                    stroke="#9ca3af"
-                    fontSize={12}
-                    tickCount={7}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#020617",
-                      border: "1px solid #1f2937",
-                      borderRadius: "0.75rem",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="grade"
-                    stroke="#6366f1"
-                    strokeWidth={2}
-                    dot={{ r: 4, strokeWidth: 2, stroke: "#a5b4fc" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+          <div className="space-y-4">
+            <div className="ui-panel p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-slate-100 mb-3">
+                {t(
+                  "student.absencesChart",
+                  "Қатыспау динамикасы (айлар бойынша)"
+                )}
+              </h3>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={absencesHistory}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+                    <YAxis stroke="#9ca3af" fontSize={12} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#020617",
+                        border: "1px solid #1f2937",
+                        borderRadius: "0.75rem",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <Bar dataKey="abs" name="Барлығы" fill="#38bdf8" />
+                    <Bar dataKey="unexcused" name="Себепсіз" fill="#f97373" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="ui-panel p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-slate-100 mb-2">
+                Быстрый вывод
+              </h3>
+              <ul className="text-xs text-slate-300 space-y-1.5">
+                <li>
+                  • Риск:{" "}
+                  <span className="text-slate-100 font-semibold">
+                    {riskLabel[riskLevel]}
+                  </span>
+                </li>
+                <li>
+                  • Средний балл:{" "}
+                  <span className="text-slate-100 font-semibold">
+                    {student.avgGrade.toFixed(1)}
+                  </span>
+                </li>
+                <li>
+                  • Тренд:{" "}
+                  <span
+                    className={
+                      student.gradeTrend < 0
+                        ? "text-rose-300"
+                        : "text-emerald-300"
+                    }
+                  >
+                    {student.gradeTrend.toFixed(2)}
+                  </span>
+                </li>
+                <li>
+                  • На контроль:{" "}
+                  <span className="text-slate-100 font-semibold">
+                    {activeActions.length > 0 ? "да" : "нет"}
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="ui-panel p-4 md:p-5">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-sm font-semibold text-slate-100">
+                  Оценки по предметам
+                </h3>
+                {auth.role === "teacher" && auth.selectedSubject && (
+                  <span className="text-[11px] text-slate-400">
+                    Показан только ваш предмет
+                  </span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-400">
+                      <th className="text-left font-medium py-2 pr-3">
+                        Предмет
+                      </th>
+                      <th className="text-right font-medium py-2 px-3">
+                        Оценка
+                      </th>
+                      <th className="text-right font-medium py-2 pl-3">
+                        Тренд
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjectTable.map((row) => (
+                      <tr
+                        key={row.code}
+                        className="border-t border-slate-800/70"
+                      >
+                        <td className="py-2 pr-3 text-slate-200 whitespace-nowrap">
+                          {row.name}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <span
+                            className={
+                              row.grade < 3.0
+                                ? "text-rose-300"
+                                : row.grade < 3.5
+                                ? "text-amber-300"
+                                : "text-emerald-300"
+                            }
+                          >
+                            {row.grade.toFixed(1)}
+                          </span>
+                        </td>
+                        <td className="py-2 pl-3 text-right">
+                          <span
+                            className={
+                              row.trend < 0
+                                ? "text-rose-300"
+                                : "text-emerald-300"
+                            }
+                          >
+                            {row.trend.toFixed(1)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-2">
+                Примечание: в демо-версии предметные оценки синтезируются из
+                общего среднего балла и сигналов риска, чтобы в интерфейсе было
+                видно, что по разным предметам показатели отличаются.
+              </p>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Правая колонка: AI + психосигналы + график пропусков */}
-        <div className="space-y-4">
-          {/* AI рекомендации */}
-          <div className="rounded-2xl bg-indigo-950/60 border border-indigo-500/40 p-4 md:p-5">
-            <h3 className="text-sm font-semibold text-indigo-100 mb-3">
-              {t("student.aiTitle", "AI ұсыныстар (завуч үшін)")}
-            </h3>
+      {tab === "ai" && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <div className="ui-panel p-4 md:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-slate-100">
+                {t("student.aiTitle", "AI ұсыныстар (завуч үшін)")}
+              </h3>
+              <span className="text-[10px] text-slate-500">
+                {aiRiskLoading
+                  ? "AI талдау жүктелуде..."
+                  : aiRisk
+                  ? "AI"
+                  : "Rule-based"}
+              </span>
+            </div>
 
             {aiLoading && (
-              <p className="text-xs text-indigo-100/80">
+              <p className="text-xs text-slate-300 mt-3">
                 AI ұсыныстарын есептеу жүріп жатыр...
               </p>
             )}
 
             {!aiLoading && aiText && (
-              <div className="text-xs text-indigo-100/90 whitespace-pre-line max-h-48 overflow-y-auto pr-1 custom-scroll-thin leading-relaxed">
+              <div className="text-xs text-slate-200 whitespace-pre-line max-h-72 overflow-y-auto pr-1 custom-scroll-thin leading-relaxed mt-3">
                 {aiText}
               </div>
             )}
 
             {!aiLoading && !aiText && (
-              <ul className="space-y-2 text-xs text-indigo-100/90 leading-relaxed">
+              <ul className="space-y-2 text-xs text-slate-200 leading-relaxed mt-3">
                 {aiRecommendationsFallback.map((rec, idx) => (
                   <li key={idx} className="flex gap-2">
-                    <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-indigo-400" />
+                    <span className="mt-[3px] h-1.5 w-1.5 rounded-full bg-primary-500" />
                     <span>{rec}</span>
                   </li>
                 ))}
@@ -482,59 +758,247 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
             )}
           </div>
 
-          {/* Психологические сигналы */}
-          <div className="rounded-2xl bg-slate-950/70 border border-rose-500/40 p-4 md:p-5">
-            <h3 className="text-sm font-semibold text-rose-100 mb-2">
-              Психологиялық сигналдар (тек завуч пен психолог үшін)
-            </h3>
-            <ul className="text-xs text-rose-50 space-y-1.5 leading-relaxed">
-              {riskData.psychSignals.map((s, idx) => (
-                <li key={idx}>• {s}</li>
-              ))}
-            </ul>
-            <p className="text-[10px] text-rose-200/70 mt-2">
-              Ескерту: бұл ақпарат болашақта рөлдік қолжетімділік арқылы ғана
-              көрінеді (завуч / психолог).
-            </p>
-          </div>
-
-          {/* График пропусков */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-700/70 p-4 md:p-5">
-            <h3 className="text-sm font-semibold text-slate-100 mb-3">
-              {t(
-                "student.absencesChart",
-                "Қатыспау динамикасы (айлар бойынша)"
-              )}
-            </h3>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={absencesHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                  <YAxis stroke="#9ca3af" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#020617",
-                      border: "1px solid #1f2937",
-                      borderRadius: "0.75rem",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Bar dataKey="abs" name="Барлығы" fill="#38bdf8" />
-                  <Bar dataKey="unexcused" name="Себепсіз" fill="#f97373" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="space-y-4">
+            {riskData.roleRecs && (
+              <RoleRecommendationsSection
+                roleRecs={riskData.roleRecs}
+                userRole={userRole}
+              />
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Рекомендации по ролям – во всю ширину, ниже основной сетки */}
-      {riskData.roleRecs && (
-        <RoleRecommendationsSection
-          roleRecs={riskData.roleRecs}
-          userRole={userRole}
-        />
+      {tab === "control" && (
+        <section className="rounded-2xl bg-slate-950/80 border border-slate-800/80 p-4 lg:p-5 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100">
+                Контроль и действия
+              </h3>
+              <p className="text-xs text-slate-400">
+                Ученик считается «на контроле», если есть действия со статусом
+                «Новая» или «В работе».
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span
+                className={
+                  activeActions.length > 0
+                    ? "px-2.5 py-1 rounded-full text-[11px] bg-indigo-500/10 text-indigo-200 border border-indigo-500/30"
+                    : "px-2.5 py-1 rounded-full text-[11px] bg-slate-800/60 text-slate-300 border border-slate-700/60"
+                }
+              >
+                {activeActions.length > 0
+                  ? `На контроле · активных: ${activeActions.length}`
+                  : "Без контроля"}
+              </span>
+
+              <button
+                onClick={() => setActionFormOpen((v) => !v)}
+                className="px-3 py-1.5 rounded-full text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                + Действие
+              </button>
+            </div>
+          </div>
+
+          {actionFormOpen && (
+            <div className="ui-panel p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-400">Тип</label>
+                  <select
+                    value={actionType}
+                    onChange={(e) =>
+                      setActionType(e.target.value as ActionType)
+                    }
+                    className="w-full rounded-xl bg-slate-800/80 border border-slate-600/60 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                  >
+                    {(Object.keys(actionTypeLabel) as ActionType[]).map((k) => (
+                      <option key={k} value={k}>
+                        {actionTypeLabel[k]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-400">Кому</label>
+                  <input
+                    value={actionAssignee}
+                    onChange={(e) => setActionAssignee(e.target.value)}
+                    className="w-full rounded-xl bg-slate-800/80 border border-slate-600/60 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                    placeholder="Напр: Классрук / Учитель математики"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-400">Срок (опц.)</label>
+                  <input
+                    type="date"
+                    value={actionDue}
+                    onChange={(e) => setActionDue(e.target.value)}
+                    className="w-full rounded-xl bg-slate-800/80 border border-slate-600/60 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs text-slate-400">Комментарий</label>
+                <textarea
+                  rows={3}
+                  value={actionNote}
+                  onChange={(e) => setActionNote(e.target.value)}
+                  className="w-full rounded-xl bg-slate-800/80 border border-slate-600/60 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60"
+                  placeholder="Что нужно сделать и почему"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setActionFormOpen(false)}
+                  className="px-4 py-1.5 rounded-full text-sm border border-slate-600 text-slate-300 hover:bg-slate-800"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={submitAction}
+                  className="px-4 py-1.5 rounded-full text-sm bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="ui-panel p-4">
+              <p className="text-xs font-semibold text-slate-200 mb-3">
+                Активные действия
+              </p>
+
+              {activeActions.length === 0 && (
+                <p className="text-sm text-slate-400">Активных действий нет.</p>
+              )}
+
+              <div className="space-y-2">
+                {activeActions.map((a) => (
+                  <div
+                    key={a.id}
+                    className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-50">
+                          {a.title}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Кому:{" "}
+                          <span className="text-slate-200">{a.assignee}</span>
+                          {a.dueDate ? (
+                            <>
+                              {" "}
+                              · Срок:{" "}
+                              <span className="text-slate-200">
+                                {a.dueDate}
+                              </span>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+
+                      <span className="px-2 py-1 rounded-full text-[11px] bg-indigo-500/10 text-indigo-200 border border-indigo-500/30">
+                        {actionStatusLabel[a.status]}
+                      </span>
+                    </div>
+
+                    {a.note ? (
+                      <p className="text-xs text-slate-300 mt-2 whitespace-pre-line">
+                        {a.note}
+                      </p>
+                    ) : null}
+
+                    <div className="flex flex-wrap justify-end gap-2 mt-3">
+                      {a.status === "NEW" && (
+                        <button
+                          onClick={() => {
+                            updateAction(a.id, { status: "IN_PROGRESS" });
+                            setActionsTick((x) => x + 1);
+                          }}
+                          className="px-3 py-1.5 rounded-full text-xs border border-slate-600 text-slate-200 hover:bg-slate-800"
+                        >
+                          В работу
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          updateAction(a.id, { status: "DONE" });
+                          setActionsTick((x) => x + 1);
+                        }}
+                        className="px-3 py-1.5 rounded-full text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        Выполнено
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="ui-panel p-4">
+              <p className="text-xs font-semibold text-slate-200 mb-3">
+                История (выполнено / отменено)
+              </p>
+
+              {doneActions.length === 0 && (
+                <p className="text-sm text-slate-400">Истории пока нет.</p>
+              )}
+
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scroll-thin">
+                {doneActions.map((a) => (
+                  <div
+                    key={a.id}
+                    className="rounded-xl border border-slate-800/80 bg-slate-950/30 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-slate-50">
+                          {a.title}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Кому:{" "}
+                          <span className="text-slate-200">{a.assignee}</span>
+                          {a.dueDate ? (
+                            <>
+                              {" "}
+                              · Срок:{" "}
+                              <span className="text-slate-200">
+                                {a.dueDate}
+                              </span>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+
+                      <span className="px-2 py-1 rounded-full text-[11px] bg-slate-800/60 text-slate-200 border border-slate-700/60">
+                        {actionStatusLabel[a.status]}
+                      </span>
+                    </div>
+
+                    {a.result ? (
+                      <p className="text-xs text-slate-300 mt-2 whitespace-pre-line">
+                        Итог: {a.result}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       )}
     </div>
   );
@@ -544,10 +1008,12 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
 
 type RoleKey = "teacher" | "deputy" | "parent" | "psychologist";
 
-const userRoleLabel = (role?: UserRole): string => {
+const userRoleLabel = (role?: ViewRole): string => {
   switch (role) {
     case "teacher":
       return "Мұғалім";
+    case "class_teacher":
+      return "Классный руководитель";
     case "psychologist":
       return "Психолог";
     case "parent":
@@ -564,7 +1030,7 @@ const RoleRecommendationsSection: React.FC<{
   roleRecs:
     | NonNullable<ReturnType<typeof getRoleRecommendations>>
     | AIRiskAnalysis["roleRecs"];
-  userRole?: UserRole;
+  userRole?: ViewRole;
 }> = ({ roleRecs, userRole }) => {
   // Приводим к единому виду (на случай rule-based или AI)
   const normalized = roleRecs as any;
@@ -573,6 +1039,9 @@ const RoleRecommendationsSection: React.FC<{
     switch (userRole) {
       case "teacher":
         return ["teacher"];
+      case "class_teacher":
+        // Классрук: видит рекомендации как учитель + блок для родителей
+        return ["teacher", "parent"];
       case "psychologist":
         // психолог видит советы себе и родителям
         return ["psychologist", "parent"];

@@ -1,6 +1,6 @@
 import type { Student } from "../types/student";
 
-export const STUDENTS: Student[] = [
+const RAW_STUDENTS: Student[] = [
   {
     id: "7A-1",
     fullName: "Азизова Эсма Хейраддиновна",
@@ -2076,3 +2076,171 @@ export const STUDENTS: Student[] = [
     subjectsAtRisk: [],
   },
 ];
+
+// For demo/presentation:
+// 1) Ensure nobody has a "2.0"-like average (min 2.6)
+// 2) Avoid "flat" looking data (e.g., 2.6 / 2.6 / 2.6 everywhere)
+// 3) Make risk distribution look realistic for a small school demo
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function rand01(h: number, shift: number): number {
+  // 0..1 (deterministic)
+  return ((h >>> shift) % 10000) / 10000;
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+// Keep this formula in sync with src/data/riskUtils.ts (duplicated here to avoid circular imports)
+function calcRiskScore(s: Student): number {
+  let score = 0;
+
+  if (s.avgGrade < 2.5) score += 40;
+  else if (s.avgGrade < 3.0) score += 30;
+  else if (s.avgGrade < 3.5) score += 20;
+  else if (s.avgGrade < 4.0) score += 10;
+
+  if (s.gradeTrend < -0.5) score += 15;
+  else if (s.gradeTrend < -0.2) score += 8;
+
+  score += s.unexcusedAbsences * 4;
+  if (s.unexcusedAbsences >= 5) score += 10;
+
+  const excused = Math.max(s.absences - s.unexcusedAbsences, 0);
+  score += excused * 1.5;
+
+  score += s.teacherAlerts * 10;
+  score += (s.subjectsAtRisk?.length ?? 0) * 5;
+  if (s.lowActivity) score += 8;
+
+  return score;
+}
+
+const LOW_RISK_SUBJECTS = [
+  "math",
+  "kazakh",
+  "english",
+  "history",
+  "physics",
+  "chemistry",
+] as const;
+
+export const STUDENTS: Student[] = RAW_STUDENTS.map((raw) => {
+  const h = hashString(raw.id);
+
+  // --- 1) Make avgGrade always >= 2.6 but not "flat" ---
+  let avg = raw.avgGrade;
+  if (avg < 2.6) {
+    // lift into 2.6..3.8 (0.1 step)
+    const lift = 2.6 + Math.floor(rand01(h, 3) * 13) / 10; // 2.6..3.8
+    avg = lift;
+  } else {
+    // tiny jitter so similar students don't have identical averages
+    const jitter = (rand01(h, 11) - 0.5) * 0.35; // ~±0.175
+    avg = avg + jitter;
+  }
+  avg = round1(clamp(avg, 2.6, 5.0));
+
+  // --- 2) Trend: add small individual variation (and improve some students) ---
+  let trend = raw.gradeTrend;
+  trend = trend + (rand01(h, 17) - 0.5) * 0.3; // ±0.15
+
+  // for a subset, show "positive динамика" (not all)
+  if (rand01(h, 23) < 0.22) trend += 0.2;
+  // for a small subset, keep some negative pressure
+  if (rand01(h, 27) < 0.10) trend -= 0.15;
+
+  trend = round1(clamp(trend, -1.2, 1.2));
+
+  // start with updated avg/trend
+  let s: Student = {
+    ...raw,
+    avgGrade: avg,
+    gradeTrend: trend,
+  };
+
+  // --- 3) Make risk distribution look realistic ---
+  // Reduce part of the medium group down to low/none (presentation-friendly)
+  let score = calcRiskScore(s);
+  if (score >= 35 && score < 70) {
+    const p = rand01(h, 29);
+    if (p < 0.65) {
+      // soften a few factors
+      const reduceUA = p < 0.55 ? 1 : 0;
+      const reduceAlerts = p < 0.45 ? 1 : 0;
+      const reduceSubjects = p < 0.35 ? 1 : 0;
+
+      const unexcusedAbsences = Math.max(s.unexcusedAbsences - reduceUA, 0);
+      const teacherAlerts = Math.max(s.teacherAlerts - reduceAlerts, 0);
+      const subjectsAtRisk = s.subjectsAtRisk.slice(
+        0,
+        Math.max(s.subjectsAtRisk.length - reduceSubjects, 0)
+      );
+
+      const homeworkCompletion = clamp(
+        s.homeworkCompletion + Math.floor(rand01(h, 7) * 12),
+        35,
+        100
+      );
+
+      const lowActivity = p < 0.28 ? false : s.lowActivity;
+
+      // absences must not be less than unexcusedAbsences
+      const absences = Math.max(s.absences, unexcusedAbsences);
+
+      s = {
+        ...s,
+        absences,
+        unexcusedAbsences,
+        teacherAlerts,
+        subjectsAtRisk,
+        homeworkCompletion,
+        lowActivity,
+      };
+    }
+  }
+
+  // For a few high-risk students, show improvement, but keep some truly high
+  score = calcRiskScore(s);
+  if (score >= 70 && rand01(h, 31) < 0.25) {
+    const unexcusedAbsences = Math.max(s.unexcusedAbsences - 1, 0);
+    const teacherAlerts = Math.max(s.teacherAlerts - 1, 0);
+    const absences = Math.max(s.absences, unexcusedAbsences);
+    s = { ...s, absences, unexcusedAbsences, teacherAlerts };
+  }
+
+  // --- 4) Ensure we have enough "low" risk students (not only medium/high/none) ---
+  // If student is "none", we gently bump a subset into "low" (for demo variety)
+  score = calcRiskScore(s);
+  if (score < 20 && rand01(h, 5) < 0.18) {
+    const subj = LOW_RISK_SUBJECTS[(h >>> 9) % LOW_RISK_SUBJECTS.length];
+    const subjectsAtRisk = s.subjectsAtRisk.length
+      ? s.subjectsAtRisk
+      : [subj];
+
+    const unexcusedAbsences = Math.max(s.unexcusedAbsences, 2);
+    const absences = Math.max(s.absences, unexcusedAbsences);
+
+    s = {
+      ...s,
+      absences,
+      unexcusedAbsences,
+      lowActivity: rand01(h, 13) < 0.5 ? true : s.lowActivity,
+      subjectsAtRisk,
+    };
+  }
+
+  return s;
+});

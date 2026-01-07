@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Sidebar } from "./components/layout/Sidebar";
 import { Topbar } from "./components/layout/Topbar";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -11,8 +11,8 @@ import { RiskStudentsPage } from "./pages/RiskStudentsPage";
 import { StudentProfilePage } from "./pages/StudentProfilePage";
 import { TeacherProfilePage } from "./pages/TeacherProfilePage";
 import { ClassProfilePage } from "./pages/ClassProfilePage";
+import { ClassTeacherDashboardPage } from "./pages/ClassTeacherDashboardPage";
 
-// 👇 добавили
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { RoleSelectPage } from "./pages/RoleSelectPage";
 import { DeputyDashboardPage } from "./pages/DeputyDashboardPage";
@@ -30,41 +30,55 @@ export type PageKey =
   | "teacherProfile"
   | "classProfile";
 
-// Внутренний App, который уже знает про роль
 const AppInner: React.FC = () => {
-  const { role } = useAuth(); // 👈 кто сейчас залогинен: завуч / учитель / психолог / null
+  const { role, className } = useAuth();
 
   const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    null
-  );
-  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(
-    null
-  );
-  const [selectedClassName, setSelectedClassName] = useState<string | null>(
-    null
-  );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const handleBackFromStudent = () => setCurrentPage("risk");
+  const [prevPage, setPrevPage] = useState<PageKey | null>(null);
+
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
+  const [selectedClassName, setSelectedClassName] = useState<string | null>(null);
+  const [riskInitialMode, setRiskInitialMode] = useState<"class" | "subject">("class");
+
+  useEffect(() => {
+    // When role changes, bring user back to dashboard (avoids "stuck" pages)
+    setCurrentPage("dashboard");
+    setPrevPage(null);
+    setSelectedStudentId(null);
+    setSelectedTeacherId(null);
+    setSelectedClassName(null);
+    setRiskInitialMode("class");
+  }, [role]);
+
+  const openRisk = (mode: "class" | "subject" = "class") => {
+    setRiskInitialMode(mode);
+    setCurrentPage("risk");
+  };
+
+  const handleBackFromStudent = () => setCurrentPage(prevPage ?? "risk");
+  const handleBackFromTeacher = () => setCurrentPage(prevPage ?? "teachers");
+  const handleBackFromClass = () => setCurrentPage(prevPage ?? "classes");
 
   const handleOpenStudentProfile = (id: string) => {
+    setPrevPage(currentPage);
     setSelectedStudentId(id);
     setCurrentPage("studentProfile");
   };
 
-  // учитель
   const handleOpenTeacherProfile = (id: number) => {
+    setPrevPage(currentPage);
     setSelectedTeacherId(id);
     setCurrentPage("teacherProfile");
   };
-  const handleBackFromTeacher = () => setCurrentPage("teachers");
 
-  // класс
-  const handleOpenClassProfile = (className: string) => {
-    setSelectedClassName(className);
+  const handleOpenClassProfile = (cls: string) => {
+    setPrevPage(currentPage);
+    setSelectedClassName(cls);
     setCurrentPage("classProfile");
   };
-  const handleBackFromClass = () => setCurrentPage("classes");
 
   const renderPage = () => {
     switch (currentPage) {
@@ -77,23 +91,27 @@ const AppInner: React.FC = () => {
       case "assessments":
         return <AssessmentsPage />;
       case "risk":
-        return <RiskStudentsPage onSelectStudent={handleOpenStudentProfile} />;
+        return (
+          <RiskStudentsPage
+            onSelectStudent={handleOpenStudentProfile}
+            forcedClassName={role === "class_teacher" ? className : null}
+            initialMode={riskInitialMode}
+          />
+        );
       case "studentProfile":
         return (
           selectedStudentId && (
             <StudentProfilePage
               studentId={String(selectedStudentId)}
               onBack={handleBackFromStudent}
+              userRole={role as any}
             />
           )
         );
       case "teacherProfile":
         return (
           selectedTeacherId && (
-            <TeacherProfilePage
-              teacherId={selectedTeacherId}
-              onBack={handleBackFromTeacher}
-            />
+            <TeacherProfilePage teacherId={selectedTeacherId} onBack={handleBackFromTeacher} />
           )
         );
       case "classProfile":
@@ -102,34 +120,67 @@ const AppInner: React.FC = () => {
             <ClassProfilePage
               className={selectedClassName}
               onBack={handleBackFromClass}
+              onOpenStudent={handleOpenStudentProfile}
             />
           )
         );
       case "dashboard":
-        return role === "deputy" ? (
-          <DeputyDashboardPage />
-        ) : role === "teacher" ? (
-          <TeacherDashboardPage />
-        ) : role === "psychologist" ? (
-          <PsychologistDashboardPage />
-        ) : (
-          <DashboardPage onNavigate={setCurrentPage} />
-        );
+      default:
+        if (role === "deputy") {
+          return (
+            <DeputyDashboardPage
+              onOpenStudent={handleOpenStudentProfile}
+              onOpenRisk={() => openRisk("class")}
+            />
+          );
+        }
+
+        if (role === "teacher") {
+          return <TeacherDashboardPage onOpenStudent={handleOpenStudentProfile} />;
+        }
+
+        if (role === "class_teacher") {
+          return (
+            <ClassTeacherDashboardPage
+              onOpenStudent={handleOpenStudentProfile}
+              onOpenRisk={(mode) => openRisk(mode)}
+            />
+          );
+        }
+
+        if (role === "psychologist") {
+          return <PsychologistDashboardPage />;
+        }
+
+        return <DashboardPage onNavigate={setCurrentPage} />;
     }
   };
 
-  // 👇 Если роль ещё не выбрана — показываем экран выбора роли вместо всей админки
   if (!role) {
     return <RoleSelectPage />;
   }
 
-  // 👇 Когда роль выбрана — твоя обычная админка
   return (
-    <div className="min-h-screen bg-slate-950 flex text-slate-50">
-      <Sidebar currentPage={currentPage} onChangePage={setCurrentPage} />
+    <div className="min-h-screen flex text-slate-50">
+      <Sidebar
+        currentPage={currentPage}
+        onChangePage={(p) => {
+          setCurrentPage(p);
+          setMobileNavOpen(false);
+        }}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+      />
       <div className="flex-1 flex flex-col">
-        <Topbar />
-        <main className="flex-1 p-4 md:p-6 lg:p-8 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <Topbar
+          onToggleSidebar={() => setMobileNavOpen((v) => !v)}
+          onOpenStudent={handleOpenStudentProfile}
+          onResetNavigation={() => {
+            setCurrentPage("dashboard");
+            setMobileNavOpen(false);
+          }}
+        />
+        <main className="flex-1 p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">{renderPage()}</div>
         </main>
       </div>
@@ -137,7 +188,6 @@ const AppInner: React.FC = () => {
   );
 };
 
-// Внешний App, который оборачивает всё в AuthProvider
 const App: React.FC = () => {
   return (
     <AuthProvider>

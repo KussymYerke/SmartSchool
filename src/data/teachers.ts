@@ -60,8 +60,35 @@ export const TEACHERS: Teacher[] = [
       //   { label: "4 четверть", avgGrade: 4.3 },
     ],
     classAssignments: [
-      { className: "7A", subject: "Тарих", hoursPerWeek: 2 },
-      { className: "8A", subject: "Тарих", hoursPerWeek: 2 },
+      // 7 классы
+      { className: "7A", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "7A", subject: "Всемирная история", hoursPerWeek: 1 },
+      { className: "7B", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "7B", subject: "Всемирная история", hoursPerWeek: 1 },
+
+      // 8 классы
+      { className: "8A", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "8A", subject: "Всемирная история", hoursPerWeek: 1 },
+      { className: "8B", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "8B", subject: "Всемирная история", hoursPerWeek: 1 },
+
+      // 9 классы
+      { className: "9A", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "9A", subject: "Всемирная история", hoursPerWeek: 1 },
+      { className: "9B", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "9B", subject: "Всемирная история", hoursPerWeek: 1 },
+
+      // 10 классы
+      { className: "10A", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "10A", subject: "Всемирная история", hoursPerWeek: 1 },
+      { className: "10B", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "10B", subject: "Всемирная история", hoursPerWeek: 1 },
+
+      // 11 классы
+      { className: "11A", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "11A", subject: "Всемирная история", hoursPerWeek: 1 },
+      { className: "11B", subject: "История Казахстана", hoursPerWeek: 2 },
+      { className: "11B", subject: "Всемирная история", hoursPerWeek: 1 },
     ],
   },
   {
