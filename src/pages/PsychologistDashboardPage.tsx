@@ -250,7 +250,10 @@ export const PsychologistDashboardPage: React.FC = () => {
             көрсетіледі.
           </p>
         </div>
-        <button onClick={() => setRole(null)} className="ui-btn-secondary rounded-full px-3 py-1.5 text-xs">
+        <button
+          onClick={() => setRole(null)}
+          className="ui-btn-secondary rounded-full px-3 py-1.5 text-xs"
+        >
           Рөлді ауыстыру
         </button>
       </header>
@@ -260,7 +263,7 @@ export const PsychologistDashboardPage: React.FC = () => {
           <div className="col-span-5">Оқушы</div>
           <div className="col-span-2 text-center">Сынып</div>
           <div className="col-span-2 text-center">Қатыспау</div>
-          <div className="col-span-3 text-center">Психо-сигнал (демо)</div>
+          <div className="col-span-3 text-center">Психо-сигнал</div>
         </div>
 
         <div className="divide-y divide-slate-800">
@@ -303,11 +306,6 @@ export const PsychologistDashboardPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      <p className="text-[10px] text-slate-500 max-w-2xl">
-        Ескерту: бұл демо-нұсқа. Кейін психологтың толық модулі (динамика,
-        тесттер, ата-анамен жұмыс, т.б.) қосылуы мүмкін.
-      </p>
 
       {selectedStudent && (
         <PsychStudentModal

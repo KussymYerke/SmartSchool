@@ -857,9 +857,7 @@ const StudentProfileModal: React.FC<{
               <h3 className="text-xs font-semibold text-slate-200">
                 Бағалар бойынша көрініс
               </h3>
-              <span className="text-[10px] text-slate-500">
-                Соңғы сабақтар (демо)
-              </span>
+              <span className="text-[10px] text-slate-500">Соңғы сабақтар</span>
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 overflow-hidden">
@@ -896,11 +894,6 @@ const StudentProfileModal: React.FC<{
                 ))}
               </div>
             </div>
-
-            <p className="text-[10px] text-slate-500 mt-1">
-              Кейін бұл блок күнделікті журналмен, БЖБ/ТЖБ базасымен нақты
-              интеграцияланады. Қазір — UI демонстрациясы үшін жасалған үлгі.
-            </p>
           </div>
         </div>
       </div>

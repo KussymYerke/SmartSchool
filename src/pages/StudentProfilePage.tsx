@@ -708,11 +708,6 @@ export const StudentProfilePage: React.FC<StudentProfilePageProps> = ({
                   </tbody>
                 </table>
               </div>
-              <p className="text-[11px] text-slate-500 mt-2">
-                Примечание: в демо-версии предметные оценки синтезируются из
-                общего среднего балла и сигналов риска, чтобы в интерфейсе было
-                видно, что по разным предметам показатели отличаются.
-              </p>
             </div>
           </div>
         </div>

@@ -9,12 +9,12 @@ type ClassStats = {
 };
 
 const CLASS_STATS: ClassStats[] = [
-  { name: "7A", students: 22, girls: 14, boys: 8 },
+  { name: "7A", students: 20, girls: 13, boys: 7 },
   { name: "8A", students: 13, girls: 11, boys: 2 },
   { name: "8B", students: 12, girls: 7, boys: 5 },
   { name: "9A", students: 18, girls: 9, boys: 9 },
   { name: "9B", students: 19, girls: 13, boys: 6 },
-  { name: "10A", students: 16, girls: 6, boys: 10 },
+  { name: "10A", students: 15, girls: 5, boys: 10 },
   { name: "10B", students: 15, girls: 7, boys: 8 },
   { name: "11A", students: 16, girls: 13, boys: 3 },
   { name: "11B", students: 19, girls: 14, boys: 5 },

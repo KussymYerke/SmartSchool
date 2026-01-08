@@ -13,7 +13,8 @@ import {
 const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   deputy:
     "Полная школьная аналитика, контроль рисков, действия и постановка на сопровождение.",
-  teacher: "Видит только свои предметы и свои классы. Оценки и риски — по предмету.",
+  teacher:
+    "Видит только свои предметы и свои классы. Оценки и риски — по предмету.",
   class_teacher:
     "Видит свой класс целиком. Дополнительно может смотреть свой предмет по всем классам, где преподаёт.",
   psychologist: "Психологические сигналы, наблюдения и направления от завуча.",
@@ -31,7 +32,8 @@ export const RoleSelectPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [chosenHomeroom, setChosenHomeroom] = useState<string | null>(null);
   const [accountQuery, setAccountQuery] = useState<string>("");
-  const [accountSubjectFilter, setAccountSubjectFilter] = useState<string>("all");
+  const [accountSubjectFilter, setAccountSubjectFilter] =
+    useState<string>("all");
 
   const accounts = useMemo(() => {
     if (role === "teacher") return TEACHER_ACCOUNTS;
@@ -98,7 +100,8 @@ export const RoleSelectPage: React.FC = () => {
     setAccount(a);
     setPassword("");
     setError(null);
-    if (role === "class_teacher") setChosenHomeroom(a.homeroomClasses[0] ?? null);
+    if (role === "class_teacher")
+      setChosenHomeroom(a.homeroomClasses[0] ?? null);
   };
 
   const doLogin = () => {
@@ -113,8 +116,12 @@ export const RoleSelectPage: React.FC = () => {
       return;
     }
 
-    const defaultSubject = account.subjects[0] ?? VISIBLE_SUBJECTS[0]?.code ?? null;
-    const className = role === "class_teacher" ? chosenHomeroom ?? account.homeroomClasses[0] ?? null : null;
+    const defaultSubject =
+      account.subjects[0] ?? VISIBLE_SUBJECTS[0]?.code ?? null;
+    const className =
+      role === "class_teacher"
+        ? chosenHomeroom ?? account.homeroomClasses[0] ?? null
+        : null;
 
     setAuth({
       role,
@@ -139,20 +146,29 @@ export const RoleSelectPage: React.FC = () => {
                 Вход
               </h1>
               <p className="text-sm text-slate-400 text-center mt-2 mb-8">
-                Выберите роль и аккаунт. (Демо-логины, без сервера)
+                Выберите роль и аккаунт.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {(
-                  ["deputy", "class_teacher", "teacher", "psychologist"] as UserRole[]
+                  [
+                    "deputy",
+                    "class_teacher",
+                    "teacher",
+                    "psychologist",
+                  ] as UserRole[]
                 ).map((r) => (
                   <button
                     key={r}
                     onClick={() => startRole(r)}
                     className="group ui-panel-hover p-4 text-left hover:-translate-y-1 transition transform"
                   >
-                    <h2 className="text-base font-semibold text-slate-50 mb-1">{ROLE_LABELS[r]}</h2>
-                    <p className="text-xs text-slate-400">{ROLE_DESCRIPTIONS[r]}</p>
+                    <h2 className="text-base font-semibold text-slate-50 mb-1">
+                      {ROLE_LABELS[r]}
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      {ROLE_DESCRIPTIONS[r]}
+                    </p>
                     <div className="mt-4 text-xs text-primary-300 group-hover:text-primary-200">
                       Продолжить →
                     </div>
@@ -164,7 +180,9 @@ export const RoleSelectPage: React.FC = () => {
             <>
               <div className="flex items-start justify-between gap-3 mb-6">
                 <div>
-                  <h1 className="text-xl md:text-2xl font-semibold">{role ? ROLE_LABELS[role] : "Аккаунт"}</h1>
+                  <h1 className="text-xl md:text-2xl font-semibold">
+                    {role ? ROLE_LABELS[role] : "Аккаунт"}
+                  </h1>
                   <p className="text-sm text-slate-400">
                     Выберите преподавателя и введите пароль.
                   </p>
@@ -188,7 +206,9 @@ export const RoleSelectPage: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="ui-panel p-4">
-                  <div className="text-xs text-slate-400 mb-3">Выбор учителя</div>
+                  <div className="text-xs text-slate-400 mb-3">
+                    Выбор учителя
+                  </div>
                   <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3">
                     <input
                       value={accountQuery}
@@ -214,12 +234,12 @@ export const RoleSelectPage: React.FC = () => {
                   </div>
                   <div className="flex flex-col gap-2">
                     {filteredAccounts.length === 0 && (
-                    <div className="px-4 py-6 text-sm text-slate-400 text-center">
-                      Ничего не найдено. Попробуйте изменить поиск или фильтр.
-                    </div>
-                  )}
+                      <div className="px-4 py-6 text-sm text-slate-400 text-center">
+                        Ничего не найдено. Попробуйте изменить поиск или фильтр.
+                      </div>
+                    )}
 
-                  {filteredAccounts.map((a) => {
+                    {filteredAccounts.map((a) => {
                       const active = account?.id === a.id;
                       return (
                         <button
@@ -232,8 +252,12 @@ export const RoleSelectPage: React.FC = () => {
                               : "bg-slate-950/20 border-slate-800 hover:bg-slate-900/50")
                           }
                         >
-                          <div className="text-sm font-semibold text-slate-50">{a.fullName}</div>
-                          <div className="text-xs text-slate-400">{a.email}</div>
+                          <div className="text-sm font-semibold text-slate-50">
+                            {a.fullName}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {a.email}
+                          </div>
                         </button>
                       );
                     })}
@@ -243,25 +267,29 @@ export const RoleSelectPage: React.FC = () => {
                 <div className="ui-panel p-4">
                   <div className="text-xs text-slate-400 mb-3">Пароль</div>
 
-                  {role === "class_teacher" && account && account.homeroomClasses.length > 1 && (
-                    <div className="mb-4">
-                      <p className="text-xs text-slate-400 mb-2">Класс руководства</p>
-                      <div className="flex flex-wrap gap-2">
-                        {account.homeroomClasses.map((cls) => (
-                          <button
-                            key={cls}
-                            onClick={() => setChosenHomeroom(cls)}
-                            className={
-                              "ui-btn-secondary rounded-full px-4 py-2 text-sm " +
-                              (chosenHomeroom === cls ? "ui-btn-primary" : "")
-                            }
-                          >
-                            {cls}
-                          </button>
-                        ))}
+                  {role === "class_teacher" &&
+                    account &&
+                    account.homeroomClasses.length > 1 && (
+                      <div className="mb-4">
+                        <p className="text-xs text-slate-400 mb-2">
+                          Класс руководства
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {account.homeroomClasses.map((cls) => (
+                            <button
+                              key={cls}
+                              onClick={() => setChosenHomeroom(cls)}
+                              className={
+                                "ui-btn-secondary rounded-full px-4 py-2 text-sm " +
+                                (chosenHomeroom === cls ? "ui-btn-primary" : "")
+                              }
+                            >
+                              {cls}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   <input
                     type="password"
@@ -274,7 +302,9 @@ export const RoleSelectPage: React.FC = () => {
                     placeholder="Введите пароль"
                   />
 
-                  {error && <div className="mt-3 text-sm text-red-300">{error}</div>}
+                  {error && (
+                    <div className="mt-3 text-sm text-red-300">{error}</div>
+                  )}
 
                   <button
                     onClick={doLogin}
@@ -282,10 +312,6 @@ export const RoleSelectPage: React.FC = () => {
                   >
                     Войти
                   </button>
-
-                  <div className="mt-4 text-xs text-slate-500">
-                    Подсказка: это демо-проект. Пароли хранятся на клиенте.
-                  </div>
                 </div>
               </div>
             </>
